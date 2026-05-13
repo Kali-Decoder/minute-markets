@@ -6,7 +6,7 @@ Built using:
 
 - ⚡ Somnia Network
 - 🤖 Somnia AI Agents
-- 📈 Oracle-based settlement
+- 📈 AI-based market settlement
 - 💰 Automated reward distribution
 - 🎮 Gamified trading experience
 
@@ -16,7 +16,7 @@ Built using:
 
 Somnia Predict is inspired by prediction markets like PancakeSwap Prediction but enhanced with:
 
-- AI-powered sentiment analysis
+- AI-powered settlement
 - Whale tracking
 - Smart risk analysis
 - Real-time prediction insights
@@ -41,12 +41,15 @@ Users simply:
 - Automated payouts
 - Real-time odds
 - Dynamic reward multipliers
+- Treasury fee system
+- Refund support
+- Market factory architecture
 
 ---
 
-## AI-Powered Somnia Agents
+# AI-Powered Somnia Agents
 
-### Sentiment Analysis Agent
+## Sentiment Analysis Agent
 
 Analyzes:
 
@@ -67,7 +70,7 @@ Returns:
 
 ---
 
-### Whale Activity Agent
+## Whale Activity Agent
 
 Tracks:
 
@@ -78,7 +81,7 @@ Tracks:
 
 ---
 
-### Market Summary Agent
+## Market Summary Agent
 
 Provides AI-generated market summaries:
 
@@ -88,7 +91,7 @@ BTC momentum remains bullish due to ETF inflows and whale accumulation.
 
 ---
 
-### Risk Analysis Agent
+## Risk Analysis Agent
 
 Warns users about:
 
@@ -113,20 +116,26 @@ Warns users about:
        │
        ▼
 ┌─────────────┐
-│   Oracle    │
-│  Settlement │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
 │ Somnia AI   │
-│   Agents    │
+│   Platform  │
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│  Payouts &  │
-│   Rewards   │
+│ Validators  │
+│ Consensus   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ CoinGecko   │
+│ Price Data  │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Settlement  │
+│ & Rewards   │
 └─────────────┘
 ```
 
@@ -136,7 +145,7 @@ Warns users about:
 
 ## 1. Betting Phase
 
-Duration: 4 minutes
+Duration: 5 minutes
 
 Users can:
 
@@ -149,17 +158,15 @@ Users can:
 
 ## 2. Lock Phase
 
-Duration: 1 minute
-
 - Betting disabled
-- Lock price recorded
-- Awaiting final settlement
+- Lock price requested using Somnia Agents
+- Validators reach consensus
 
 ---
 
 ## 3. Settlement Phase
 
-Oracle fetches closing price.
+Somnia validators fetch the closing price.
 
 Rules:
 
@@ -180,7 +187,7 @@ Initial Markets:
 - BTC/USD
 - ETH/USD
 - SOMNIA/USD
-- BNB/USD
+- SOL/USD
 
 Future Markets:
 
@@ -205,6 +212,7 @@ Responsibilities:
 - Store predictions
 - Calculate rewards
 - Handle claims
+- Integrate Somnia AI Agents
 
 Functions:
 
@@ -212,53 +220,35 @@ Functions:
 betUp()
 betDown()
 startRound()
-lockRound()
-endRound()
+requestLockPrice()
+requestClosePrice()
+handleResponse()
 claim()
-refund()
+claimTreasury()
+cancelRound()
 ```
 
 ---
 
-### OracleManager.sol
+### PredictionMarketFactory.sol
 
-Handles oracle integrations.
-
-Supported Oracles:
-
-- Chainlink
-- Pyth
-- RedStone
+Factory contract for deploying new prediction markets.
 
 Responsibilities:
 
-- Price fetching
-- Freshness validation
-- Oracle failover
+- Create new markets
+- Store deployed market info
+- Treasury management
+- Market management
 
----
+Functions:
 
-### Treasury.sol
-
-Manages:
-
-- Platform fees
-- Revenue distribution
-- Buybacks
-- Staking rewards
-
----
-
-### AIInsightAgent.sol
-
-Integrates Somnia Agents.
-
-Provides:
-
-- Sentiment analysis
-- Whale tracking
-- AI summaries
-- Risk analysis
+```solidity
+createMarket()
+getAllMarkets()
+getMarketInfo()
+updateMarketStatus()
+```
 
 ---
 
@@ -268,101 +258,200 @@ Somnia Predict uses Somnia Agents for:
 
 | Agent | Purpose |
 |---|---|
+| JSON API Request | Fetch live crypto prices |
 | LLM Inference | AI market analysis |
-| JSON API Request | External market data |
 | Website Parsing | News & social extraction |
 
 ---
 
-# Oracle Architecture
+# AI Settlement Flow
 
-## Settlement Oracle
+## Lock Price Request
 
-Used for final round settlement.
-
-Requirements:
-
-- Decentralized
-- Manipulation-resistant
-- High reliability
-
-Primary Options:
-
-- Chainlink
-- Pyth
-
----
-
-## Live Market Feed
-
-Used for frontend charts only.
-
-Sources:
-
-- Binance
-- TradingView
-- CoinMarketCap
+```text
+PredictionMarket
+      │
+      ▼
+Somnia Platform
+      │
+      ▼
+Validators Fetch CoinGecko Price
+      │
+      ▼
+Consensus Reached
+      │
+      ▼
+handleResponse()
+      │
+      ▼
+lockPrice Stored
+```
 
 ---
 
-# Revenue Model
+## Close Price Request
 
-## Platform Fee
+```text
+PredictionMarket
+      │
+      ▼
+Somnia Platform
+      │
+      ▼
+Validators Fetch Latest Price
+      │
+      ▼
+Consensus Reached
+      │
+      ▼
+handleResponse()
+      │
+      ▼
+closePrice Stored
+      │
+      ▼
+Rewards Calculated
+```
+
+---
+
+# Reward Calculation
+
+## Winning Logic
+
+```text
+UP Wins:
+closePrice > lockPrice
+
+DOWN Wins:
+closePrice < lockPrice
+```
+
+---
+
+## Reward Formula
+
+```text
+Reward Pool =
+Total Pool - Treasury Fee
+```
 
 Example:
 
 ```text
-3% fee per prediction round
+Total Pool = 100 STT
+Treasury Fee = 3%
+Reward Pool = 97 STT
 ```
-
-Distribution:
-
-| Allocation | Percentage |
-|---|---|
-| Treasury | 40% |
-| Buybacks | 30% |
-| Referrals | 10% |
-| Staking Rewards | 20% |
 
 ---
 
-# Gamification
+# Market Lifecycle
 
-## Features
+## 1. Create Market
 
-- Daily streaks
-- XP system
-- NFT achievements
-- Leaderboards
-- Referral rewards
-- Prediction ranks
+Owner deploys new market:
+
+```bash
+npx hardhat run scripts/deploy/create-market.ts --network somniaTestnet
+```
+
+---
+
+## 2. Start Round
+
+```bash
+npx hardhat run scripts/prediction/start-round.ts --network somniaTestnet
+```
+
+---
+
+## 3. Place Bets
+
+### UP Bet
+
+```bash
+EPOCH=1 BET_AMOUNT_ETH=0.1 \
+npx hardhat run scripts/prediction/bet-up.ts --network somniaTestnet
+```
+
+### DOWN Bet
+
+```bash
+EPOCH=1 BET_AMOUNT_ETH=0.1 \
+npx hardhat run scripts/prediction/bet-down.ts --network somniaTestnet
+```
+
+---
+
+## 4. Request Lock Price
+
+```bash
+EPOCH=1 REQUEST_VALUE_ETH=0.12 \
+npx hardhat run scripts/prediction/request-lock-price.ts --network somniaTestnet
+```
+
+---
+
+## 5. Request Close Price
+
+```bash
+EPOCH=1 REQUEST_VALUE_ETH=0.12 \
+npx hardhat run scripts/prediction/request-close-price.ts --network somniaTestnet
+```
+
+---
+
+## 6. Claim Rewards
+
+```bash
+EPOCH=1 \
+npx hardhat run scripts/prediction/claim.ts --network somniaTestnet
+```
+
+---
+
+# Project Structure
+
+```bash
+5-minute-somnia/
+├── contracts/
+│   ├── PredictionMarket.sol
+│   ├── PredictionMarketFactory.sol
+│   └── interfaces/
+│
+├── scripts/
+│   ├── deploy/
+│   └── prediction/
+│
+├── deployments/
+│
+├── test/
+│
+├── hardhat.config.ts
+└── README.md
+```
 
 ---
 
 # Security
 
-## Oracle Protection
-
-- Stale price checks
-- Multiple oracle validation
-- Max deviation protection
-
----
-
 ## Smart Contract Security
 
 - Reentrancy guards
-- Emergency pause
-- Timelocks
-- Multi-sig treasury
+- Owner-only controls
+- Refund mechanisms
+- Emergency cancellation
+- Treasury protection
 
 ---
 
-## Anti-Manipulation
+## AI Protection
 
-- Betting cooldowns
-- Max bet limits
-- AI anomaly detection
+- Validator consensus
+- Decentralized execution
+- Request verification
+- Price integrity checks
 
 ---
 
@@ -371,16 +460,16 @@ Distribution:
 ## Phase 1
 
 - Core prediction markets
-- Oracle integration
-- AI sentiment engine
+- Somnia Agent integration
+- Multi-market support
 
 ---
 
 ## Phase 2
 
+- AI sentiment dashboards
+- Whale tracking
 - Leaderboards
-- Streak rewards
-- Advanced analytics
 
 ---
 
@@ -406,39 +495,11 @@ Distribution:
 |---|---|
 | Frontend | Next.js |
 | Smart Contracts | Solidity |
-| Backend | Node.js / NestJS |
+| Backend | Node.js |
 | AI Layer | Somnia Agents |
 | Charts | TradingView |
-| Database | PostgreSQL |
 | Wallets | Wagmi + RainbowKit |
 | Indexing | The Graph |
-
----
-
-# Project Structure
-
-```bash
-somnia-predict/
-├── apps/
-│   ├── web/
-│   └── backend/
-│
-├── contracts/
-│   ├── PredictionMarket.sol
-│   ├── OracleManager.sol
-│   ├── Treasury.sol
-│   └── interfaces/
-│
-├── agents/
-│   ├── sentiment-agent/
-│   ├── whale-tracker-agent/
-│   ├── risk-analysis-agent/
-│   └── market-summary-agent/
-│
-├── scripts/
-├── docs/
-└── README.md
-```
 
 ---
 
@@ -453,4 +514,4 @@ Somnia Predict aims to become the next generation AI-powered prediction market b
 - Real-time analytics
 - Ultra-fast blockchain infrastructure
 
-Built for the future of decentralized speculative markets on Somnia 🚀# 5-minute-somnia
+Built for the future of decentralized speculative markets on Somnia 🚀

@@ -1,26 +1,198 @@
 import hre from "hardhat";
-import { getMarket, parseEtherEnv, requireUint } from "./_common";
 
-async function main(): Promise<void> {
-  const epoch = requireUint("EPOCH", process.env.EPOCH);
-  const value = parseEtherEnv("REQUEST_VALUE_ETH", process.env.REQUEST_VALUE_ETH, "0");
+import {
+  getMarket,
+  parseEtherEnv,
+  requireUint,
+} from "./_common";
 
-  const [signer] = await hre.ethers.getSigners();
-  const market = await getMarket();
+async function main() {
+  // ============================================================
+  // ENV
+  // ============================================================
 
-  console.log("Network:", hre.network.name, "chainId:", hre.network.config.chainId);
-  console.log("Signer:", signer.address);
-  console.log("Market:", await market.getAddress());
-  console.log("Epoch:", epoch.toString());
-  console.log("Value:", hre.ethers.formatEther(value));
+  const epoch =
+    requireUint(
+      "EPOCH",
+      process.env.EPOCH
+    );
 
-  const tx = await market.requestLockPrice(epoch, { value });
-  await tx.wait();
-  console.log("✅ requestLockPrice tx:", tx.hash);
+  const value =
+    parseEtherEnv(
+      "REQUEST_VALUE_ETH",
+      process.env.REQUEST_VALUE_ETH,
+      "0.12"
+    );
+
+  // ============================================================
+  // SIGNER
+  // ============================================================
+
+  const [signer] =
+    await hre.ethers.getSigners();
+
+  // ============================================================
+  // MARKET
+  // ============================================================
+
+  const market =
+    await getMarket();
+
+  const marketAddress =
+    await market.getAddress();
+
+  // ============================================================
+  // NETWORK INFO
+  // ============================================================
+
+  console.log(
+    "\n=== REQUEST LOCK PRICE ===\n"
+  );
+
+  console.log(
+    "Network:",
+    hre.network.name
+  );
+
+  console.log(
+    "Chain ID:",
+    hre.network.config.chainId
+  );
+
+  console.log(
+    "Signer:",
+    signer.address
+  );
+
+  console.log(
+    "Market:",
+    marketAddress
+  );
+
+  console.log(
+    "Epoch:",
+    epoch.toString()
+  );
+
+  console.log(
+    "Request Deposit:",
+    hre.ethers.formatEther(
+      value
+    ),
+    "STT"
+  );
+
+  // ============================================================
+  // ROUND INFO
+  // ============================================================
+
+  const round =
+    await market.getRound(
+      epoch
+    );
+
+  console.log(
+    "\n=== ROUND INFO ===\n"
+  );
+
+  console.log({
+    status:
+      round.status.toString(),
+
+    startTimestamp:
+      round.startTimestamp.toString(),
+
+    lockTimestamp:
+      round.lockTimestamp.toString(),
+
+    closeTimestamp:
+      round.closeTimestamp.toString(),
+
+    totalPool:
+      hre.ethers.formatEther(
+        round.totalPool
+      ),
+  });
+
+  // ============================================================
+  // REQUEST LOCK PRICE
+  // ============================================================
+
+  console.log(
+    "\n📡 Requesting lock price from Somnia Agents..."
+  );
+
+  const tx =
+    await market.requestLockPrice(
+      epoch,
+      {
+        value,
+      }
+    );
+
+  console.log(
+    "Transaction:",
+    tx.hash
+  );
+
+  const receipt =
+    await tx.wait();
+
+  console.log(
+    "Confirmed in block:",
+    receipt?.blockNumber
+  );
+
+  // ============================================================
+  // PARSE EVENTS MANUALLY
+  // ============================================================
+
+  console.log(
+    "\n✅ Lock Price Request Sent"
+  );
+
+  const iface =
+    market.interface;
+
+  for (const log of receipt.logs) {
+    try {
+      const parsed =
+        iface.parseLog(log);
+
+      if (
+        parsed?.name ===
+        "LockPriceRequested"
+      ) {
+        console.log({
+          epoch:
+            parsed.args[0].toString(),
+
+          requestId:
+            parsed.args[1].toString(),
+        });
+      }
+    } catch {}
+  }
+
+  // ============================================================
+  // WAITING MESSAGE
+  // ============================================================
+
+  console.log(
+    "\n⏳ Waiting for Somnia validator consensus..."
+  );
+
+  console.log(
+    "The platform will automatically call handleResponse()"
+  );
+
+  console.log(
+    "After consensus, the round will become LOCKED.\n"
+  );
 }
 
 main().catch((error) => {
   console.error(error);
+
   process.exitCode = 1;
 });
-

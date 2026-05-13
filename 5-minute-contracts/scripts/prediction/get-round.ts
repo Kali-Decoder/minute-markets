@@ -1,33 +1,181 @@
 import hre from "hardhat";
-import { getMarket, requireUint } from "./_common";
 
-async function main(): Promise<void> {
-  const epoch = requireUint("EPOCH", process.env.EPOCH);
-  const market = await getMarket();
+import {
+  getMarket,
+  requireUint,
+} from "./_common";
 
-  console.log("Network:", hre.network.name, "chainId:", hre.network.config.chainId);
-  console.log("Market:", await market.getAddress());
-  console.log("Epoch:", epoch.toString());
+async function main() {
+  // ============================================================
+  // ENV
+  // ============================================================
 
-  const round = await market.getRound(epoch);
-  console.log("getRound():");
-  console.log(" epoch:", round.epoch.toString());
-  console.log(" startTimestamp:", round.startTimestamp.toString());
-  console.log(" lockTimestamp:", round.lockTimestamp.toString());
-  console.log(" closeTimestamp:", round.closeTimestamp.toString());
-  console.log(" lockPrice:", round.lockPrice.toString());
-  console.log(" closePrice:", round.closePrice.toString());
-  console.log(" totalPool:", round.totalPool.toString());
-  console.log(" upPool:", round.upPool.toString());
-  console.log(" downPool:", round.downPool.toString());
-  console.log(" rewardAmount:", round.rewardAmount.toString());
-  console.log(" treasuryAmount:", round.treasuryAmount.toString());
-  console.log(" upWon:", round.upWon);
-  console.log(" status:", round.status.toString());
+  const epoch =
+    requireUint(
+      "EPOCH",
+      process.env.EPOCH
+    );
+
+  // ============================================================
+  // MARKET
+  // ============================================================
+
+  const market =
+    await getMarket();
+
+  const marketAddress =
+    await market.getAddress();
+
+  // ============================================================
+  // NETWORK INFO
+  // ============================================================
+
+  console.log(
+    "\n=== ROUND INFO ===\n"
+  );
+
+  console.log(
+    "Network:",
+    hre.network.name
+  );
+
+  console.log(
+    "Chain ID:",
+    hre.network.config.chainId
+  );
+
+  console.log(
+    "Market:",
+    marketAddress
+  );
+
+  console.log(
+    "Epoch:",
+    epoch.toString()
+  );
+
+  // ============================================================
+  // FETCH ROUND
+  // ============================================================
+
+  const round =
+    await market.getRound(
+      epoch
+    );
+
+  // ============================================================
+  // FORMAT STATUS
+  // ============================================================
+
+  const statusMap: Record<
+    string,
+    string
+  > = {
+    "0": "LIVE",
+    "1": "LOCKED",
+    "2": "ENDED",
+    "3": "CANCELLED",
+  };
+
+  // ============================================================
+  // DISPLAY
+  // ============================================================
+
+  console.log(
+    "\n=== ROUND DETAILS ===\n"
+  );
+
+  console.log({
+    epoch:
+      round.epoch.toString(),
+
+    startTimestamp:
+      round.startTimestamp.toString(),
+
+    lockTimestamp:
+      round.lockTimestamp.toString(),
+
+    closeTimestamp:
+      round.closeTimestamp.toString(),
+
+    lockPrice:
+      round.lockPrice.toString(),
+
+    closePrice:
+      round.closePrice.toString(),
+
+    totalPool:
+      hre.ethers.formatEther(
+        round.totalPool
+      ) + " STT",
+
+    upPool:
+      hre.ethers.formatEther(
+        round.upPool
+      ) + " STT",
+
+    downPool:
+      hre.ethers.formatEther(
+        round.downPool
+      ) + " STT",
+
+    rewardAmount:
+      hre.ethers.formatEther(
+        round.rewardAmount
+      ) + " STT",
+
+    treasuryAmount:
+      hre.ethers.formatEther(
+        round.treasuryAmount
+      ) + " STT",
+
+    upWon:
+      round.upWon,
+
+    status:
+      statusMap[
+        round.status.toString()
+      ] ??
+      round.status.toString(),
+  });
+
+  // ============================================================
+  // PRICE FORMATTING
+  // ============================================================
+
+  if (
+    round.lockPrice > 0
+  ) {
+    console.log(
+      "\nLock Price:"
+    );
+
+    console.log(
+      Number(
+        round.lockPrice
+      ) / 1e8
+    );
+  }
+
+  if (
+    round.closePrice > 0
+  ) {
+    console.log(
+      "\nClose Price:"
+    );
+
+    console.log(
+      Number(
+        round.closePrice
+      ) / 1e8
+    );
+  }
+
+  console.log("\n");
 }
 
 main().catch((error) => {
   console.error(error);
+
   process.exitCode = 1;
 });
-

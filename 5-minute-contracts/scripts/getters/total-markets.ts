@@ -1,43 +1,110 @@
 import "dotenv/config";
 import hre from "hardhat";
 
-import { readJsonIfExists } from "../lib/io";
-import { DEPLOYMENT_FACTORY_JSON } from "../lib/paths";
-import { requireAddress } from "../lib/validate";
+async function main() {
+  // ============================================================
+  // FACTORY ADDRESS
+  // ============================================================
 
-type FactoryDeployment = { factory: string; network?: string; chainId?: number };
+  const factoryAddress =
+    process.env.FACTORY_ADDRESS!;
 
-async function main(): Promise<void> {
-  const deployment = readJsonIfExists<FactoryDeployment>(DEPLOYMENT_FACTORY_JSON);
-  const factoryAddress = process.env.FACTORY_ADDRESS || deployment?.factory;
-
-  const resolvedFactoryAddress = requireAddress(hre, "FACTORY_ADDRESS", factoryAddress);
-
-  console.log("Network:", hre.network.name, "chainId:", hre.network.config.chainId);
-  console.log("Factory:", resolvedFactoryAddress);
-  if (
-    deployment?.chainId != null &&
-    hre.network.config.chainId != null &&
-    deployment.chainId !== hre.network.config.chainId
-  ) {
-    console.log(
-      `⚠️  deployments/factory.json is for chainId=${deployment.chainId} (${deployment.network ?? "unknown"}). Run with --network matching that chain.`,
+  if (!factoryAddress) {
+    throw new Error(
+      "FACTORY_ADDRESS missing in .env"
     );
   }
 
-  const code = await hre.ethers.provider.getCode(resolvedFactoryAddress);
+  // ============================================================
+  // NETWORK INFO
+  // ============================================================
+
+  console.log(
+    "\n=== FACTORY INFO ===\n"
+  );
+
+  console.log(
+    "Network:",
+    hre.network.name
+  );
+
+  console.log(
+    "Chain ID:",
+    hre.network.config.chainId
+  );
+
+  console.log(
+    "Factory:",
+    factoryAddress
+  );
+
+  // ============================================================
+  // VALIDATE CONTRACT
+  // ============================================================
+
+  const code =
+    await hre.ethers.provider.getCode(
+      factoryAddress
+    );
+
   if (code === "0x") {
     throw new Error(
-      `No contract found at FACTORY_ADDRESS=${resolvedFactoryAddress} on network=${hre.network.name}. Did you forget --network (or FACTORY_ADDRESS)?`,
+      `No contract found at ${factoryAddress}`
     );
   }
 
-  const factory = await hre.ethers.getContractAt("PredictionMarketFactory", resolvedFactoryAddress);
-  const total = await factory.totalMarkets();
-  console.log("totalMarkets():", total.toString());
+  // ============================================================
+  // FACTORY INSTANCE
+  // ============================================================
+
+  const factory =
+    await hre.ethers.getContractAt(
+      "PredictionMarketFactory",
+      factoryAddress
+    );
+
+  // ============================================================
+  // FETCH DATA
+  // ============================================================
+
+  const treasury =
+    await factory.treasury();
+
+  const totalMarkets =
+    await factory.totalMarkets();
+
+  const markets =
+    await factory.getAllMarkets();
+
+  // ============================================================
+  // DISPLAY
+  // ============================================================
+
+  console.log("\nTreasury:");
+  console.log(treasury);
+
+  console.log("\nTotal Markets:");
+  console.log(
+    totalMarkets.toString()
+  );
+
+  console.log("\nMarkets:");
+
+  for (
+    let i = 0;
+    i < markets.length;
+    i++
+  ) {
+    console.log(
+      `#${i + 1}: ${markets[i]}`
+    );
+  }
+
+  console.log("\n");
 }
 
 main().catch((error) => {
   console.error(error);
+
   process.exitCode = 1;
 });

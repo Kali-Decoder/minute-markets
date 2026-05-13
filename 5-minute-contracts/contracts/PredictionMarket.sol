@@ -9,11 +9,13 @@ pragma solidity ^0.8.24;
 Features:
 - 5 minute prediction rounds
 - UP / DOWN betting
-- AI Resolver Integration
-- Somnia Agents settlement
-- Automatic lock/close price resolution
+- Somnia Agents integration
+- CoinGecko price settlement
+- Automatic round locking
+- Automatic round ending
+- Reward distribution
 - Treasury fee
-- Reward claiming
+- Claim rewards
 - Cancelled round refunds
 
 =============================================================
@@ -23,17 +25,28 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-interface IPriceResolver {
-    function requestPrice(
-        string calldata coinId
-    ) external payable returns (uint256);
-}
+import "./interfaces/ISomniaAgents.sol";
 
 contract PredictionMarket is
     Ownable,
     ReentrancyGuard,
     Pausable
 {
+    // =============================================================
+    //                       SOMNIA CONFIG
+    // =============================================================
+
+    IAgentRequester public constant PLATFORM =
+        IAgentRequester(
+            0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776
+        );
+
+    uint256 public constant JSON_API_AGENT_ID =
+        13174292974160097713;
+
+    uint256 public constant REQUEST_DEPOSIT =
+        12e16; // 0.12 STT
+
     // =============================================================
     //                           ENUMS
     // =============================================================
@@ -96,8 +109,6 @@ contract PredictionMarket is
 
     address public factory;
 
-    address public resolver;
-
     uint256 public currentEpoch;
 
     uint256 public treasuryFee = 300; // 3%
@@ -119,6 +130,9 @@ contract PredictionMarket is
 
     mapping(uint256 => bool)
         public requestIsLock;
+
+    mapping(uint256 => bool)
+        public pendingRequests;
 
     // =============================================================
     //                           STORAGE
@@ -170,6 +184,11 @@ contract PredictionMarket is
         uint256 amount
     );
 
+    event RequestFailed(
+        uint256 indexed requestId,
+        ResponseStatus status
+    );
+
     // =============================================================
     //                         CONSTRUCTOR
     // =============================================================
@@ -179,14 +198,16 @@ contract PredictionMarket is
         string memory _marketSymbol,
         string memory _coinId,
         address _owner,
-        address _treasury,
-        address _resolver
+        address _treasury
     ) Ownable(_owner) {
         marketName = _marketName;
+
         marketSymbol = _marketSymbol;
+
         coinId = _coinId;
+
         treasury = _treasury;
-        resolver = _resolver;
+
         factory = msg.sender;
     }
 
@@ -206,7 +227,8 @@ contract PredictionMarket is
 
         round.epoch = currentEpoch;
 
-        round.startTimestamp = block.timestamp;
+        round.startTimestamp =
+            block.timestamp;
 
         round.lockTimestamp =
             block.timestamp +
@@ -216,9 +238,12 @@ contract PredictionMarket is
             block.timestamp +
             (roundInterval * 2);
 
-        round.status = RoundStatus.LIVE;
+        round.status = RoundStatus
+            .LIVE;
 
-        emit RoundStarted(currentEpoch);
+        emit RoundStarted(
+            currentEpoch
+        );
     }
 
     // =============================================================
@@ -238,11 +263,42 @@ contract PredictionMarket is
             "Round not live"
         );
 
-        uint256 requestId = IPriceResolver(
-            resolver
-        ).requestPrice{value: msg.value}(
-                coinId
+        require(
+            msg.value >=
+                REQUEST_DEPOSIT,
+            "Insufficient deposit"
+        );
+
+        string memory url = string
+            .concat(
+                "https://api.coingecko.com/api/v3/simple/price?ids=",
+                coinId,
+                "&vs_currencies=usd"
             );
+
+        string memory selector = string
+            .concat(coinId, ".usd");
+
+        bytes memory payload = abi
+            .encodeWithSelector(
+                IJsonApiAgent
+                    .fetchUint
+                    .selector,
+                url,
+                selector,
+                uint8(8)
+            );
+
+        uint256 requestId = PLATFORM
+            .createRequest{
+            value: REQUEST_DEPOSIT
+        }(
+            JSON_API_AGENT_ID,
+            address(this),
+            this.handleResponse
+                .selector,
+            payload
+        );
 
         requestToEpoch[
             requestId
@@ -252,10 +308,26 @@ contract PredictionMarket is
             requestId
         ] = true;
 
+        pendingRequests[
+            requestId
+        ] = true;
+
         emit LockPriceRequested(
             epoch,
             requestId
         );
+
+        // refund excess
+        if (
+            msg.value >
+            REQUEST_DEPOSIT
+        ) {
+            payable(msg.sender)
+                .transfer(
+                    msg.value -
+                        REQUEST_DEPOSIT
+                );
+        }
     }
 
     // =============================================================
@@ -275,11 +347,42 @@ contract PredictionMarket is
             "Round not locked"
         );
 
-        uint256 requestId = IPriceResolver(
-            resolver
-        ).requestPrice{value: msg.value}(
-                coinId
+        require(
+            msg.value >=
+                REQUEST_DEPOSIT,
+            "Insufficient deposit"
+        );
+
+        string memory url = string
+            .concat(
+                "https://api.coingecko.com/api/v3/simple/price?ids=",
+                coinId,
+                "&vs_currencies=usd"
             );
+
+        string memory selector = string
+            .concat(coinId, ".usd");
+
+        bytes memory payload = abi
+            .encodeWithSelector(
+                IJsonApiAgent
+                    .fetchUint
+                    .selector,
+                url,
+                selector,
+                uint8(8)
+            );
+
+        uint256 requestId = PLATFORM
+            .createRequest{
+            value: REQUEST_DEPOSIT
+        }(
+            JSON_API_AGENT_ID,
+            address(this),
+            this.handleResponse
+                .selector,
+            payload
+        );
 
         requestToEpoch[
             requestId
@@ -289,29 +392,75 @@ contract PredictionMarket is
             requestId
         ] = false;
 
+        pendingRequests[
+            requestId
+        ] = true;
+
         emit ClosePriceRequested(
             epoch,
             requestId
         );
+
+        // refund excess
+        if (
+            msg.value >
+            REQUEST_DEPOSIT
+        ) {
+            payable(msg.sender)
+                .transfer(
+                    msg.value -
+                        REQUEST_DEPOSIT
+                );
+        }
     }
 
     // =============================================================
-    //                  HANDLE AI RESPONSE
+    //                     SOMNIA CALLBACK
     // =============================================================
 
     /*
-        Resolver backend calls this
-        after Somnia Agent consensus
+        Called automatically
+        by Somnia Platform
     */
 
-    function handlePriceResponse(
+    function handleResponse(
         uint256 requestId,
-        uint256 price
+        Response[] memory responses,
+        ResponseStatus status,
+        Request memory
     ) external {
         require(
-            msg.sender == resolver,
-            "Only resolver"
+            msg.sender ==
+                address(PLATFORM),
+            "Only platform"
         );
+
+        require(
+            pendingRequests[
+                requestId
+            ],
+            "Unknown request"
+        );
+
+        delete pendingRequests[
+            requestId
+        ];
+
+        // =========================================================
+        // REQUEST FAILED
+        // =========================================================
+
+        if (
+            status !=
+            ResponseStatus.Success
+        ) {
+            emit RequestFailed(
+                requestId,
+                status
+            );
+
+            return;
+        }
 
         uint256 epoch = requestToEpoch[
             requestId
@@ -321,12 +470,19 @@ contract PredictionMarket is
             epoch
         ];
 
+        uint256 price = abi.decode(
+            responses[0].result,
+            (uint256)
+        );
+
         // =========================================================
         // LOCK PRICE
         // =========================================================
 
         if (
-            requestIsLock[requestId]
+            requestIsLock[
+                requestId
+            ]
         ) {
             round.lockPrice = price;
 
@@ -349,15 +505,13 @@ contract PredictionMarket is
             round.status = RoundStatus
                 .ENDED;
 
-            if (
-                price > round.lockPrice
-            ) {
-                round.upWon = true;
-            } else {
-                round.upWon = false;
-            }
+            round.upWon =
+                price >
+                round.lockPrice;
 
-            _calculateRewards(epoch);
+            _calculateRewards(
+                epoch
+            );
 
             emit RoundEnded(
                 epoch,
@@ -466,9 +620,11 @@ contract PredictionMarket is
             .totalPool * treasuryFee) /
             10000;
 
-        round.treasuryAmount = treasuryAmount;
+        round.treasuryAmount =
+            treasuryAmount;
 
-        totalTreasury += treasuryAmount;
+        totalTreasury +=
+            treasuryAmount;
 
         round.rewardAmount =
             round.totalPool -
@@ -489,7 +645,8 @@ contract PredictionMarket is
             i < epochs.length;
             i++
         ) {
-            uint256 epoch = epochs[i];
+            uint256 epoch =
+                epochs[i];
 
             Round memory round = rounds[
                 epoch
@@ -506,28 +663,24 @@ contract PredictionMarket is
 
             require(
                 round.status ==
-                    RoundStatus.ENDED ||
+                    RoundStatus
+                        .ENDED ||
                     round.status ==
-                    RoundStatus.CANCELLED,
+                    RoundStatus
+                        .CANCELLED,
                 "Round not ended"
             );
 
             uint256 reward;
 
-            // =====================================================
-            // CANCELLED ROUND
-            // =====================================================
-
+            // cancelled round
             if (
                 round.status ==
-                RoundStatus.CANCELLED
+                RoundStatus
+                    .CANCELLED
             ) {
                 reward = bet.amount;
             }
-
-            // =====================================================
-            // WINNING REWARD
-            // =====================================================
 
             else {
                 bool won;
@@ -589,15 +742,16 @@ contract PredictionMarket is
     function cancelRound(
         uint256 epoch
     ) external onlyOwner {
-        rounds[epoch].status = RoundStatus
-            .CANCELLED;
+        rounds[epoch].status =
+            RoundStatus.CANCELLED;
     }
 
     function claimTreasury()
         external
         onlyOwner
     {
-        uint256 amount = totalTreasury;
+        uint256 amount =
+            totalTreasury;
 
         totalTreasury = 0;
 
@@ -621,12 +775,6 @@ contract PredictionMarket is
         uint256 _amount
     ) external onlyOwner {
         minBetAmount = _amount;
-    }
-
-    function setResolver(
-        address _resolver
-    ) external onlyOwner {
-        resolver = _resolver;
     }
 
     function setTreasury(
@@ -685,7 +833,9 @@ contract PredictionMarket is
         view
         returns (Round memory)
     {
-        return rounds[currentEpoch];
+        return rounds[
+            currentEpoch
+        ];
     }
 
     function getContractBalance()
@@ -693,7 +843,16 @@ contract PredictionMarket is
         view
         returns (uint256)
     {
-        return address(this).balance;
+        return address(this)
+            .balance;
+    }
+
+    function getRequiredDeposit()
+        external
+        pure
+        returns (uint256)
+    {
+        return REQUEST_DEPOSIT;
     }
 
     receive() external payable {}

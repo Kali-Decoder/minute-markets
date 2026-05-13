@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 /*
 =============================================================
@@ -9,7 +9,6 @@ pragma solidity ^0.8.20;
 Features:
 - Owner-only market creation
 - Direct market deployment
-- Somnia AI Resolver integration
 - Market tracking
 - Treasury management
 - Active/inactive market management
@@ -22,7 +21,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./PredictionMarket.sol";
 
 contract PredictionMarketFactory is
-    Ownable(msg.sender)
+    Ownable
 {
     // =============================================================
     //                           STRUCTS
@@ -36,8 +35,6 @@ contract PredictionMarketFactory is
         string marketSymbol;
 
         string coinId;
-
-        address resolver;
 
         address creator;
 
@@ -53,13 +50,10 @@ contract PredictionMarketFactory is
     // Treasury wallet
     address public treasury;
 
-    // AI Resolver contract
-    address public resolver;
-
     // All deployed markets
     address[] public allMarkets;
 
-    // Market info
+    // Market info mapping
     mapping(address => MarketInfo)
         public markets;
 
@@ -83,31 +77,19 @@ contract PredictionMarketFactory is
         address treasury
     );
 
-    event ResolverUpdated(
-        address resolver
-    );
-
     // =============================================================
     //                         CONSTRUCTOR
     // =============================================================
 
     constructor(
-        address _treasury,
-        address _resolver
-    ) {
+        address _treasury
+    ) Ownable(msg.sender) {
         require(
             _treasury != address(0),
             "Invalid treasury"
         );
 
-        require(
-            _resolver != address(0),
-            "Invalid resolver"
-        );
-
         treasury = _treasury;
-
-        resolver = _resolver;
     }
 
     // =============================================================
@@ -160,13 +142,11 @@ contract PredictionMarketFactory is
                 _marketSymbol,
                 _coinId,
                 owner(),
-                treasury,
-                resolver
+                treasury
             );
 
-        address marketAddress = address(
-            market
-        );
+        address marketAddress =
+            address(market);
 
         // =========================================================
         // STORE MARKET INFO
@@ -179,13 +159,14 @@ contract PredictionMarketFactory is
             marketName: _marketName,
             marketSymbol: _marketSymbol,
             coinId: _coinId,
-            resolver: resolver,
             creator: owner(),
             createdAt: block.timestamp,
             active: true
         });
 
-        allMarkets.push(marketAddress);
+        allMarkets.push(
+            marketAddress
+        );
 
         emit MarketCreated(
             marketAddress,
@@ -198,7 +179,7 @@ contract PredictionMarketFactory is
     }
 
     // =============================================================
-    //                     UPDATE MARKET STATUS
+    //                 UPDATE MARKET STATUS
     // =============================================================
 
     function updateMarketStatus(
@@ -212,7 +193,8 @@ contract PredictionMarketFactory is
             "Market not found"
         );
 
-        markets[market].active = active;
+        markets[market]
+            .active = active;
 
         emit MarketStatusUpdated(
             market,
@@ -221,7 +203,7 @@ contract PredictionMarketFactory is
     }
 
     // =============================================================
-    //                     UPDATE TREASURY
+    //                   UPDATE TREASURY
     // =============================================================
 
     function setTreasury(
@@ -240,26 +222,7 @@ contract PredictionMarketFactory is
     }
 
     // =============================================================
-    //                     UPDATE RESOLVER
-    // =============================================================
-
-    function setResolver(
-        address _resolver
-    ) external onlyOwner {
-        require(
-            _resolver != address(0),
-            "Invalid resolver"
-        );
-
-        resolver = _resolver;
-
-        emit ResolverUpdated(
-            _resolver
-        );
-    }
-
-    // =============================================================
-    //                     GETTER FUNCTIONS
+    //                    VIEW FUNCTIONS
     // =============================================================
 
     function getAllMarkets()
@@ -295,6 +258,7 @@ contract PredictionMarketFactory is
         view
         returns (bool)
     {
-        return markets[market].active;
+        return markets[market]
+            .active;
     }
 }

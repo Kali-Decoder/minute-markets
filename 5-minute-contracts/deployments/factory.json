@@ -1,0 +1,9 @@
+{
+  "network": "somniaTestnet",
+  "chainId": 50312,
+  "factory": "0xbD6c3C067CA0c6B4e3b288FaE74a5d4Ff0A56F5F",
+  "owner": "0xdAF0182De86F904918Db8d07c7340A1EfcDF8244",
+  "treasury": "0xdAF0182De86F904918Db8d07c7340A1EfcDF8244",
+  "resolver": "0xd3899fe302b149e6130b56d6843e04c22b169adf",
+  "deployedAt": "2026-05-13T11:30:35.949Z"
+}

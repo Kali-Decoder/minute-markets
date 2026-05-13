@@ -1,0 +1,11 @@
+{
+  "network": "somniaTestnet",
+  "chainId": 50312,
+  "factory": "0xbD6c3C067CA0c6B4e3b288FaE74a5d4Ff0A56F5F",
+  "market": "0x890f026532D108651Ca92F50185011CD946CacF7",
+  "marketName": "BTC/USD",
+  "marketSymbol": "BTC",
+  "coinId": "bitcoin",
+  "createdAt": "2026-05-13T11:36:40.256Z",
+  "txHash": "0x1b9a295dd425327f97604a4f27463b57db5d059f4ec22fedd7ccf13fdec15fda"
+}

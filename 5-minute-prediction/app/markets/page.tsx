@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
 import { PredictionMarketCard } from "@/app/components/PredictionMarketCard";
+import { MarketServiceControl } from "@/app/components/MarketServiceControl";
+import { MarketLaunchSidebar } from "@/app/components/MarketLaunchSidebar";
 import { usePredictionMarketFactoryCreateMarket, usePredictionMarketFactoryGetAllMarkets, usePredictionMarketFactoryGetMarketInfo } from "@/app/hooks/usePredictionMarketFactory";
 import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
 import { somniaTestnet } from "@/app/config/chains";
@@ -155,38 +157,51 @@ export default function MarketsPage() {
         Factory: {factoryAddress ?? "Not configured for this chain"} {chainId !== somniaTestnet.id ? `(switch to ${somniaTestnet.name})` : ""}
       </p>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        {([
-          { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },
-          { key: "bitcoin", label: "Bitcoin", icon: <BitcoinIcon className="h-4 w-4" /> },
-          { key: "ethereum", label: "Ethereum", icon: <EthereumIcon className="h-4 w-4" /> },
-          { key: "solana", label: "Solana", icon: <SolanaIcon className="h-4 w-4" /> },
-          { key: "somnia", label: "Somnia", icon: <SomniaIcon className="h-4 w-4" /> },
-        ] as const).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={[
-              "px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors inline-flex items-center gap-2",
-              tab === t.key
-                ? "border-monad-purple/50 bg-monad-purple/10 text-white"
-                : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30",
-            ].join(" ")}
-          >
-            {"icon" in t && t.icon ? t.icon : null}
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          {/* Admin-only controls (keep separate from the user sidebar) */}
+          <MarketServiceControl defaultVariant="compact" showVariantToggle={true} />
 
-      {isLoading && <p className="text-gray-400">Loading markets…</p>}
-      {error && <p className="text-red-300">Failed to load markets.</p>}
-      {!isLoading && !error && markets.length === 0 && <p className="text-gray-400">No markets created yet.</p>}
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            {([
+              { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },
+              { key: "bitcoin", label: "Bitcoin", icon: <BitcoinIcon className="h-4 w-4" /> },
+              { key: "ethereum", label: "Ethereum", icon: <EthereumIcon className="h-4 w-4" /> },
+              { key: "solana", label: "Solana", icon: <SolanaIcon className="h-4 w-4" /> },
+              { key: "somnia", label: "Somnia", icon: <SomniaIcon className="h-4 w-4" /> },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={[
+                  "px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors inline-flex items-center gap-2",
+                  tab === t.key
+                    ? "border-monad-purple/50 bg-monad-purple/10 text-white"
+                    : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30",
+                ].join(" ")}
+              >
+                {"icon" in t && t.icon ? t.icon : null}
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {markets.map((m) => (
-          <MarketCardFromFactory key={m} market={m} tab={tab} />
-        ))}
+          {isLoading && <p className="text-gray-400">Loading markets…</p>}
+          {error && <p className="text-red-300">Failed to load markets.</p>}
+          {!isLoading && !error && markets.length === 0 && <p className="text-gray-400">No markets created yet.</p>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {markets.map((m) => (
+              <MarketCardFromFactory key={m} market={m} tab={tab} />
+            ))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          <div className="sticky top-24">
+            <MarketLaunchSidebar />
+          </div>
+        </div>
       </div>
 
       {isCreateOpen && (

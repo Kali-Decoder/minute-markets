@@ -1,5 +1,7 @@
 # Somnia Predict — AI Powered 5-Minute Prediction Market
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/074dcc54-47d7-4bf8-b5af-a41b81bbd347" />
+
 A decentralized AI-powered prediction market built on Somnia where users predict whether an asset price will go **UP** or **DOWN** within 5-minute rounds.
 
 Built using:

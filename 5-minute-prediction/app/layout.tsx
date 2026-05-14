@@ -10,12 +10,17 @@ export const metadata: Metadata = {
   title: "MinuteMarkets | 5-Minute Prediction Market",
   description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
   icons: {
-    icon: [{ url: publicAssetUrl("/mm-logo.svg"), type: "image/svg+xml" }],
+    icon: [{ url: publicAssetUrl("/logo.png"), type: "image/png" }],
   },
   openGraph: {
     title: "MinuteMarkets | 5-Minute Prediction Market",
     description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
     url: "https://somnia.network",
+    images: [publicAssetUrl("/logo.png")],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [publicAssetUrl("/logo.png")],
   },
 };
 

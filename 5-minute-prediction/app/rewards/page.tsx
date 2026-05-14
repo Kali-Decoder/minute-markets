@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Award, TrendingUp, TrendingDown } from "lucide-react";
+import { RewardsMechanicsGraph } from "@/app/components/RewardsMechanicsGraph";
 
 export default function RewardsPage() {
   return (
@@ -84,6 +85,10 @@ export default function RewardsPage() {
         </div>
 
         {/* Additional Information */}
+        <div className="mb-8 sm:mb-12">
+          <RewardsMechanicsGraph />
+        </div>
+
         <div className="mt-8 sm:mt-12 rounded-xl border border-white/10 bg-white/5 p-4 sm:p-6 md:p-8 backdrop-blur-sm">
           <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Settlement Walkthrough</h3>
           <div className="space-y-3 sm:space-y-4 text-xs sm:text-sm md:text-base text-gray-300">

@@ -7,7 +7,6 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { formatEther, formatUnits, parseEther, type Address } from "viem";
 import { useAccount } from "wagmi";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   useMarketBetDown,
   useMarketBetUp,
@@ -22,6 +21,7 @@ import {
   useMarketUserBet,
 } from "@/app/hooks/usePredictionMarketContract";
 import { getTokenLogoUrl, tokenSymbolFromCoinId } from "@/app/config/tokenLogos";
+import { MarketOddsHistoryChart, type OddsPoint } from "@/app/components/MarketOddsHistoryChart";
 
 function asAddress(value: string | string[] | undefined): Address | undefined {
   if (typeof value !== "string") return undefined;
@@ -133,19 +133,20 @@ export default function MarketDetailPage() {
     };
   }, [currentRound]);
 
-  const [poolSeries, setPoolSeries] = useState<Array<{ t: number; up: number; down: number }>>([]);
+  const [oddsSeries, setOddsSeries] = useState<OddsPoint[]>([]);
 
   useEffect(() => {
     if (!currentRound) return;
-    const point = {
-      t: Date.now(),
-      up: Number(formatEther(currentRound.upPool)),
-      down: Number(formatEther(currentRound.downPool)),
-    };
-    setPoolSeries((prev) => {
+    const up = Number(formatEther(currentRound.upPool));
+    const down = Number(formatEther(currentRound.downPool));
+    const total = up + down;
+    const yes = total > 0 ? (up / total) * 100 : 0;
+    const no = total > 0 ? (down / total) * 100 : 0;
+    const point: OddsPoint = { t: Date.now(), yes, no };
+    setOddsSeries((prev) => {
       const next = [...prev, point];
-      // keep last ~5 minutes if UI is open (60 points at 5s sampling)
-      return next.slice(-60);
+      // keep last ~24 hours at 5s sampling (~17k points) but cap for safety
+      return next.slice(-20_000);
     });
   }, [currentRound]);
 
@@ -391,35 +392,12 @@ export default function MarketDetailPage() {
 
               <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-                  <span>Up vs Down (Current Round)</span>
+                  <span>Odds History</span>
                   <span className="text-gray-500">
-                    {formatEther(currentRound.upPool)} / {formatEther(currentRound.downPool)} ETH
+                    Pool: {formatEther(currentRound.upPool)} / {formatEther(currentRound.downPool)} ETH
                   </span>
                 </div>
-                <div className="h-16">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={poolSeries} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
-                      <XAxis dataKey="t" hide />
-                      <YAxis hide domain={[0, "dataMax"]} />
-                      <Tooltip
-                        cursor={false}
-                        content={({ active, payload }) => {
-                          if (!active || !payload || !payload.length) return null;
-                          const up = payload.find((p) => p.dataKey === "up")?.value as number | undefined;
-                          const down = payload.find((p) => p.dataKey === "down")?.value as number | undefined;
-                          return (
-                            <div className="rounded-lg border border-white/10 bg-black/80 px-3 py-2 text-xs text-white">
-                              <div>UP: {typeof up === "number" ? up.toFixed(4) : "—"} ETH</div>
-                              <div>DOWN: {typeof down === "number" ? down.toFixed(4) : "—"} ETH</div>
-                            </div>
-                          );
-                        }}
-                      />
-                      <Line type="monotone" dataKey="up" stroke="#22c55e" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="down" stroke="#ef4444" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <MarketOddsHistoryChart series={oddsSeries} yesLabel="UP" noLabel="DOWN" />
               </div>
             </>
           )}

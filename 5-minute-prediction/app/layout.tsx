@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "MinuteMarkets | 5-Minute Prediction Market",
   description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
   icons: {
-    icon: "/favicon.ico",
+    icon: [{ url: "/mm-logo.svg", type: "image/svg+xml" }],
   },
   openGraph: {
     title: "MinuteMarkets | 5-Minute Prediction Market",

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Menu, X, Clock } from "lucide-react";
+import Image from "next/image";
+import { Search, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 // import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { WalletConnect } from "./WalletConnect";
@@ -42,10 +43,8 @@ export function Navbar() {
         
         {/* 1. Left: Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0" onClick={() => setIsMobileMenuOpen(false)}>
-          <div className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-monad-purple shadow-[0_0_15px_-3px_rgba(135,109,255,0.4)]">
-            <div className="absolute -right-1 -top-1 h-4 w-4 sm:h-[18px] sm:w-[18px] rounded-full border border-white/15 bg-black/40 backdrop-blur flex items-center justify-center">
-              <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-white" />
-            </div>
+          <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl overflow-hidden border border-white/10 bg-black shadow-[0_0_18px_-4px_rgba(255,255,255,0.18)]">
+            <Image src="/mm-logo.svg" alt="MinuteMarkets" fill className="object-cover" priority />
           </div>
           <span className="text-lg sm:text-xl font-bold tracking-tight text-white">
             <span className="text-monad-purple">Minute</span><span className="text-white">Markets</span>

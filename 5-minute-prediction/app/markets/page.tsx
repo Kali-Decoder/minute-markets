@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X } from "lucide-react";
-import { Coins } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
 import { PredictionMarketCard } from "@/app/components/PredictionMarketCard";
-import { MarketLaunchSidebar, type ServiceState } from "@/app/components/MarketLaunchSidebar";
+import { type ServiceState } from "@/app/components/MarketLaunchSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { usePredictionMarketFactoryCreateMarket, usePredictionMarketFactoryGetAllMarkets, usePredictionMarketFactoryGetMarketInfo } from "@/app/hooks/usePredictionMarketFactory";
 import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
@@ -19,12 +18,11 @@ function asAddress(value: string): Address | null {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : null;
 }
 
-type MarketTab = "all" | "bitcoin" | "ethereum" | "solana" | "somnia";
+type MarketTab = "bitcoin" | "ethereum" | "solana" | "somnia";
 
 function matchesTab(coinId: string, tab: MarketTab): boolean {
-  if (tab === "all") return true;
   const normalized = (coinId || "").trim().toLowerCase();
-  if (!normalized) return tab === "all";
+  if (!normalized) return false;
   // tolerate "btc"/"eth"/"sol" symbols or full ids
   if (tab === "bitcoin") return normalized === "bitcoin" || normalized === "btc";
   if (tab === "ethereum") return normalized === "ethereum" || normalized === "eth";
@@ -40,6 +38,15 @@ function formatCountdown(ms: number): string {
   const s = totalSec % 60;
   if (m <= 0) return `${s}s`;
   return `${m}m ${s}s`;
+}
+
+function LaunchStep({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="text-[11px] text-gray-400 font-semibold">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-white tabular-nums">{value}</div>
+    </div>
+  );
 }
 
 function BitcoinIcon({ className }: { className?: string }) {
@@ -120,7 +127,7 @@ export default function MarketsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [form, setForm] = useState({ marketName: "", marketSymbol: "", coinId: "" });
-  const [tab, setTab] = useState<MarketTab>("all");
+  const [tab, setTab] = useState<MarketTab>("bitcoin");
 
   const markets = useMemo(() => {
     const list = (allMarkets as Address[] | undefined) ?? [];
@@ -136,7 +143,7 @@ export default function MarketsPage() {
     const amount = Math.max(step, Math.floor(el.clientWidth * 0.8));
     const delta = direction === "left" ? -amount : amount;
     try {
-      el.scrollBy({ left: delta, behavior: "smooth" });
+      el.scrollTo({ left: el.scrollLeft + delta, behavior: "smooth" });
     } catch {
       el.scrollLeft += delta;
     }
@@ -146,8 +153,7 @@ export default function MarketsPage() {
     if (tab === "bitcoin") return "BTC";
     if (tab === "ethereum") return "ETH";
     if (tab === "solana") return "SOL";
-    if (tab === "somnia") return "SOMI";
-    return "BTC";
+    return "SOMI";
   }, [tab]);
 
   const { data: headerPriceData, isLoading: headerPriceLoading } = useCoinPrice({
@@ -199,6 +205,8 @@ export default function MarketsPage() {
   const headerTimer = serviceState?.running ? timeLeft : "00:00";
 
   const nextLaunchIn = serviceState?.nextCreateAt ? formatCountdown(serviceState.nextCreateAt - serviceNow) : null;
+  const lockIn = serviceState?.nextLockAt ? formatCountdown(serviceState.nextLockAt - serviceNow) : null;
+  const closeIn = serviceState?.nextCloseAt ? formatCountdown(serviceState.nextCloseAt - serviceNow) : null;
 
   const canCreate = chainId === somniaTestnet.id && !!factoryAddress;
 
@@ -263,9 +271,51 @@ export default function MarketsPage() {
         Factory: {factoryAddress ?? "Not configured for this chain"} {chainId !== somniaTestnet.id ? `(switch to ${somniaTestnet.name})` : ""}
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-        <div>
-          <div className="flex items-center justify-between gap-4 mb-6">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 mb-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-monad-purple" />
+            <div className="text-white font-semibold">Next Market Launch</div>
+          </div>
+          <span
+            className={[
+              "text-[10px] px-2 py-0.5 rounded-full border",
+              serviceState?.running ? "border-green-500/30 bg-green-500/10 text-green-300" : "border-white/10 bg-white/5 text-gray-300",
+            ].join(" ")}
+          >
+            {serviceState?.running ? "Live" : "Paused"}
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-[12px] text-gray-400">Launching in</div>
+            <div className="text-3xl sm:text-4xl font-bold tracking-tight text-white mt-1 tabular-nums">
+              {serviceState?.running ? nextLaunchIn ?? "—" : "00:00"}
+            </div>
+          </div>
+          {serviceState?.lastCreatedMarket ? (
+            <div className="text-xs text-gray-400">
+              Last: <span className="text-white">{serviceState.lastCreatedMarket.coinId}</span>{" "}
+              <span className="text-gray-500">•</span>{" "}
+              <span className="text-gray-300 font-mono">{serviceState.lastCreatedMarket.address}</span>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-500">No market created yet by the service.</div>
+          )}
+        </div>
+
+        {serviceState?.lastError ? <div className="mt-2 text-xs text-red-300">Error: {serviceState.lastError}</div> : null}
+
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <LaunchStep label="Create" value={serviceState?.running ? nextLaunchIn ?? "—" : "00:00"} />
+          <LaunchStep label="Lock" value={serviceState?.running ? lockIn ?? "—" : "00:00"} />
+          <LaunchStep label="Close" value={serviceState?.running ? closeIn ?? "—" : "00:00"} />
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3 min-w-0">
               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 flex items-center gap-3">
                 <div className="text-emerald-200 font-semibold tabular-nums text-lg">
@@ -276,7 +326,6 @@ export default function MarketsPage() {
 
               <div className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 flex items-center gap-2">
                 {([
-                  { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },
                   { key: "bitcoin", label: "BTC", icon: <BitcoinIcon className="h-4 w-4" /> },
                   { key: "ethereum", label: "ETH", icon: <EthereumIcon className="h-4 w-4" /> },
                   { key: "solana", label: "SOL", icon: <SolanaIcon className="h-4 w-4" /> },
@@ -353,16 +402,24 @@ export default function MarketsPage() {
           {error && <p className="text-red-300">Failed to load markets.</p>}
           {!isLoading && !error && markets.length === 0 && <p className="text-gray-400">No markets created yet.</p>}
 
-          <div className="relative">
-            <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth">
+          <div className="relative isolate">
+            <div
+              ref={scrollRef}
+              className="flex w-full max-w-full gap-4 overflow-x-scroll pb-4 snap-x snap-mandatory scroll-smooth"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
               {markets.map((m) => (
                 <MarketCardFromFactory key={m} market={m} tab={tab} />
               ))}
             </div>
 
             <button
-              onClick={() => scrollByCards("left")}
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                scrollByCards("left");
+              }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center pointer-events-auto"
               aria-label="Scroll markets left"
               title="Scroll left"
               type="button"
@@ -370,8 +427,12 @@ export default function MarketsPage() {
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
-              onClick={() => scrollByCards("right")}
-              className="absolute right-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                scrollByCards("right");
+              }}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center pointer-events-auto"
               aria-label="Scroll markets right"
               title="Scroll right"
               type="button"
@@ -379,11 +440,6 @@ export default function MarketsPage() {
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
-        </div>
-
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <MarketLaunchSidebar />
-        </div>
       </div>
 
       {isCreateOpen && (

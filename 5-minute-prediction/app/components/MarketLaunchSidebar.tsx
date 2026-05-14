@@ -5,7 +5,7 @@ import type { Address, Hash } from "viem";
 import { CheckCircle2, Circle, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type ServiceState = {
+export type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;

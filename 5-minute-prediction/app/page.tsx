@@ -29,7 +29,7 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-4 sm:mb-6 tracking-tight leading-tight px-2">
-            <span className="text-monad-purple">Somnia</span> Predict
+            <span className="text-monad-purple">Minute</span>Markets
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-400 mb-3 sm:mb-4 max-w-3xl mx-auto leading-relaxed px-2">

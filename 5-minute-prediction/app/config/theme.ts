@@ -1,5 +1,5 @@
 /**
- * Essential Theme Configuration for Somnia Predict
+ * Essential Theme Configuration for MinuteMarkets
  * 
  * This file contains all theme-related constants and configurations
  * used throughout the application.

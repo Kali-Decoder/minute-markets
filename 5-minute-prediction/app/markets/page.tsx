@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X } from "lucide-react";
 import { Coins } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
 import { PredictionMarketCard } from "@/app/components/PredictionMarketCard";
-import { MarketLaunchSidebar } from "@/app/components/MarketLaunchSidebar";
+import { MarketLaunchSidebar, type ServiceState } from "@/app/components/MarketLaunchSidebar";
+import { useQuery } from "@tanstack/react-query";
 import { usePredictionMarketFactoryCreateMarket, usePredictionMarketFactoryGetAllMarkets, usePredictionMarketFactoryGetMarketInfo } from "@/app/hooks/usePredictionMarketFactory";
 import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
 import { somniaTestnet } from "@/app/config/chains";
 import { getPredictionMarketFactoryAddress } from "@/app/config/predictionAddresses";
+import { useCoinPrice } from "@/app/hooks/useCoinPrice";
 
 function asAddress(value: string): Address | null {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : null;
@@ -29,6 +31,15 @@ function matchesTab(coinId: string, tab: MarketTab): boolean {
   if (tab === "solana") return normalized === "solana" || normalized === "sol";
   if (tab === "somnia") return normalized === "somnia" || normalized === "somi";
   return true;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "0s";
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m <= 0) return `${s}s`;
+  return `${m}m ${s}s`;
 }
 
 function BitcoinIcon({ className }: { className?: string }) {
@@ -116,6 +127,79 @@ export default function MarketsPage() {
     return list.filter(Boolean);
   }, [allMarkets]);
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollByCards = (direction: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const firstCard = el.querySelector<HTMLElement>("[data-market-card]");
+    const step = (firstCard?.offsetWidth ?? 360) + 16; // card width + gap-4
+    const amount = Math.max(step, Math.floor(el.clientWidth * 0.8));
+    const delta = direction === "left" ? -amount : amount;
+    try {
+      el.scrollBy({ left: delta, behavior: "smooth" });
+    } catch {
+      el.scrollLeft += delta;
+    }
+  };
+
+  const headerSymbol = useMemo(() => {
+    if (tab === "bitcoin") return "BTC";
+    if (tab === "ethereum") return "ETH";
+    if (tab === "solana") return "SOL";
+    if (tab === "somnia") return "SOMI";
+    return "BTC";
+  }, [tab]);
+
+  const { data: headerPriceData, isLoading: headerPriceLoading } = useCoinPrice({
+    symbol: headerSymbol,
+    enabled: true,
+    refetchInterval: 10000,
+  });
+
+  const headerPriceUsd = useMemo(() => {
+    const coinData = headerPriceData?.data?.[0];
+    const usd = coinData?.prices?.find((p) => p.currency?.toUpperCase() === "USD")?.value;
+    const any = coinData?.prices?.[0]?.value;
+    const value = usd || any || null;
+    if (!value) return null;
+    const asNumber = Number(value);
+    if (!Number.isFinite(asNumber)) return null;
+    return asNumber;
+  }, [headerPriceData]);
+
+  const [timeLeft, setTimeLeft] = useState("02:00");
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsedSec = Math.floor((Date.now() - start) / 1000);
+      const remaining = Math.max(0, 120 - elapsedSec);
+      const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+      const ss = String(remaining % 60).padStart(2, "0");
+      setTimeLeft(`${mm}:${ss}`);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const [serviceNow, setServiceNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => setServiceNow(Date.now()), 1_000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const { data: serviceState } = useQuery<ServiceState>({
+    queryKey: ["market-service-status-mini"],
+    queryFn: async () => {
+      const res = await fetch("/api/market-service/status", { cache: "no-store" });
+      return (await res.json()) as ServiceState;
+    },
+    refetchInterval: 3_000,
+    staleTime: 0,
+  });
+
+  const headerTimer = serviceState?.running ? timeLeft : "00:00";
+
+  const nextLaunchIn = serviceState?.nextCreateAt ? formatCountdown(serviceState.nextCreateAt - serviceNow) : null;
+
   const canCreate = chainId === somniaTestnet.id && !!factoryAddress;
 
   const handleCreate = async () => {
@@ -150,52 +234,155 @@ export default function MarketsPage() {
         </button> */}
       </div>
 
-      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Prediction Markets</h1>
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Prediction Markets</h1>
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+            <Clock className="h-4 w-4 text-monad-purple" />
+            <span className="text-white font-semibold tabular-nums">{headerTimer}</span>
+            <span className="text-xs text-gray-400 font-semibold">5m</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <span
+              className={[
+                "text-[10px] px-2 py-0.5 rounded-full border",
+                serviceState?.running
+                  ? "border-green-500/30 bg-green-500/10 text-green-300"
+                  : "border-white/10 bg-white/5 text-gray-300",
+              ].join(" ")}
+            >
+              {serviceState?.running ? "Launch Live" : "Launch Paused"}
+            </span>
+            <span className="text-xs text-gray-300">
+              Next: <span className="text-white font-semibold tabular-nums">{nextLaunchIn ?? "—"}</span>
+            </span>
+          </div>
+        </div>
+      </div>
       <p className="text-sm text-gray-400 mb-8">
         Factory: {factoryAddress ?? "Not configured for this chain"} {chainId !== somniaTestnet.id ? `(switch to ${somniaTestnet.name})` : ""}
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
-          <div className="flex flex-wrap items-center gap-2 mb-6">
-            {([
-              { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },
-              { key: "bitcoin", label: "Bitcoin", icon: <BitcoinIcon className="h-4 w-4" /> },
-              { key: "ethereum", label: "Ethereum", icon: <EthereumIcon className="h-4 w-4" /> },
-              { key: "solana", label: "Solana", icon: <SolanaIcon className="h-4 w-4" /> },
-              { key: "somnia", label: "Somnia", icon: <SomniaIcon className="h-4 w-4" /> },
-            ] as const).map((t) => (
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+        <div>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 flex items-center gap-3">
+                <div className="text-emerald-200 font-semibold tabular-nums text-lg">
+                  {headerPriceLoading ? "—" : headerPriceUsd != null ? `$${headerPriceUsd.toFixed(4)}` : "—"}
+                </div>
+                <div className="text-xs text-gray-300 font-semibold tracking-wide">{headerSymbol}USD</div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 flex items-center gap-2">
+                {([
+                  { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },
+                  { key: "bitcoin", label: "BTC", icon: <BitcoinIcon className="h-4 w-4" /> },
+                  { key: "ethereum", label: "ETH", icon: <EthereumIcon className="h-4 w-4" /> },
+                  { key: "solana", label: "SOL", icon: <SolanaIcon className="h-4 w-4" /> },
+                  { key: "somnia", label: "SOMI", icon: <SomniaIcon className="h-4 w-4" /> },
+                ] as const).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
+                    className={[
+                      "h-10 px-3 rounded-xl border text-sm font-semibold transition-colors inline-flex items-center gap-2",
+                      tab === t.key
+                        ? "border-monad-purple/50 bg-monad-purple/10 text-white"
+                        : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30",
+                    ].join(" ")}
+                    aria-label={`Filter ${t.label}`}
+                    title={t.label}
+                  >
+                    {t.icon}
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2">
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={[
-                  "px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors inline-flex items-center gap-2",
-                  tab === t.key
-                    ? "border-monad-purple/50 bg-monad-purple/10 text-white"
-                    : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30",
-                ].join(" ")}
+                onClick={() => scrollByCards("left")}
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                aria-label="Scroll left"
+                title="Scroll left"
               >
-                {"icon" in t && t.icon ? t.icon : null}
-                {t.label}
+                <ChevronLeft className="h-5 w-5" />
               </button>
-            ))}
+              <button
+                onClick={() => scrollByCards("right")}
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                aria-label="Scroll right"
+                title="Scroll right"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="sm:hidden rounded-2xl border border-white/10 bg-black/20 px-3 py-2 flex items-center gap-2">
+                <span className="text-white font-semibold tabular-nums">{headerTimer}</span>
+                <span className="text-xs text-gray-400 font-semibold">5m</span>
+              </div>
+              <button
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                aria-label="Help"
+                title="Help"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+              <button
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                aria-label="Leaderboard"
+                title="Leaderboard"
+              >
+                <Trophy className="h-5 w-5" />
+              </button>
+              <button
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                aria-label="History"
+                title="History"
+              >
+                <History className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {isLoading && <p className="text-gray-400">Loading markets…</p>}
           {error && <p className="text-red-300">Failed to load markets.</p>}
           {!isLoading && !error && markets.length === 0 && <p className="text-gray-400">No markets created yet.</p>}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {markets.map((m) => (
-              <MarketCardFromFactory key={m} market={m} tab={tab} />
-            ))}
+          <div className="relative">
+            <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth">
+              {markets.map((m) => (
+                <MarketCardFromFactory key={m} market={m} tab={tab} />
+              ))}
+            </div>
+
+            <button
+              onClick={() => scrollByCards("left")}
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+              aria-label="Scroll markets left"
+              title="Scroll left"
+              type="button"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => scrollByCards("right")}
+              className="absolute right-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+              aria-label="Scroll markets right"
+              title="Scroll right"
+              type="button"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
           </div>
         </div>
 
-        <div className="lg:col-span-1">
-          <div className="sticky top-24">
-            <MarketLaunchSidebar />
-          </div>
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <MarketLaunchSidebar />
         </div>
       </div>
 
@@ -290,17 +477,23 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
 
   if (!info) {
     const addr = asAddress(market);
-    return (
-      <PredictionMarketCard
-        address={addr ?? (market as Address)}
-        name="Loading…"
-        symbol=""
-        coinId=""
-        roundStatus={typeof round?.status === "number" ? round.status : undefined}
-        upPool={round?.upPool}
-        downPool={round?.downPool}
-      />
-    );
+  return (
+    <PredictionMarketCard
+      address={addr ?? (market as Address)}
+      name="Loading…"
+      symbol=""
+      coinId=""
+      roundStatus={typeof round?.status === "number" ? round.status : undefined}
+      roundEpoch={round?.epoch}
+      totalPool={round?.totalPool}
+      upPool={round?.upPool}
+      downPool={round?.downPool}
+      lockPrice={round?.lockPrice}
+      closePrice={round?.closePrice}
+      upWon={round?.upWon}
+      startTimestamp={round?.startTimestamp}
+    />
+  );
   }
 
   if (!matchesTab(info.coinId, tab)) return null;
@@ -312,8 +505,14 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
       symbol={info.marketSymbol}
       coinId={info.coinId}
       roundStatus={typeof round?.status === "number" ? round.status : undefined}
+      roundEpoch={round?.epoch}
+      totalPool={round?.totalPool}
       upPool={round?.upPool}
       downPool={round?.downPool}
+      lockPrice={round?.lockPrice}
+      closePrice={round?.closePrice}
+      upWon={round?.upWon}
+      startTimestamp={round?.startTimestamp}
     />
   );
 }

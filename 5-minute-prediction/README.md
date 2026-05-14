@@ -1,4 +1,4 @@
-# Somnia Predict — AI Powered 5-Minute Prediction Market
+# MinuteMarkets — AI Powered 5-Minute Prediction Market
 
 A decentralized AI-powered prediction market built on Somnia where users predict whether an asset price will go **UP** or **DOWN** within 5-minute rounds.
 
@@ -14,7 +14,7 @@ Built using:
 
 # Overview
 
-Somnia Predict is inspired by prediction markets like PancakeSwap Prediction but enhanced with:
+MinuteMarkets is inspired by prediction markets like PancakeSwap Prediction but enhanced with:
 
 - AI-powered sentiment analysis
 - Whale tracking
@@ -264,7 +264,7 @@ Provides:
 
 # Somnia Agents Integration
 
-Somnia Predict uses Somnia Agents for:
+MinuteMarkets uses Somnia Agents for:
 
 | Agent | Purpose |
 |---|---|
@@ -444,7 +444,7 @@ somnia-predict/
 
 # Vision
 
-Somnia Predict aims to become the next generation AI-powered prediction market by combining:
+MinuteMarkets aims to become the next generation AI-powered prediction market by combining:
 
 - Prediction trading
 - AI intelligence

@@ -35,7 +35,7 @@ export function AppLoader() {
         {/* Dynamic Text */}
         <div className="text-center">
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold text-white mb-2 sm:mb-4 tracking-tight">
-            {progress < 50 ? "Somnia Predict" : "5-Minute Rounds"}
+            {progress < 50 ? "MinuteMarkets" : "5-Minute Rounds"}
           </h1>
         </div>
 

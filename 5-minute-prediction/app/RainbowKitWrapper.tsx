@@ -14,7 +14,7 @@ import { rainbowKitTheme } from "./config/theme";
 import type { ReactNode } from "react";
 
 const config = getDefaultConfig({
-  appName: "Somnia Predict",
+  appName: "MinuteMarkets",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "367e7033f1d106ae8bdbbd60e7c478a9",
   wallets: [
     {

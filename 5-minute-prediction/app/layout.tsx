@@ -6,13 +6,13 @@ import { FontLoader } from "./components/FontLoader";
 import { AppLoader } from "./components/AppLoader";
 
 export const metadata: Metadata = {
-  title: "Somnia Predict | 5-Minute Prediction Market",
+  title: "MinuteMarkets | 5-Minute Prediction Market",
   description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
   icons: {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "Somnia Predict | 5-Minute Prediction Market",
+    title: "MinuteMarkets | 5-Minute Prediction Market",
     description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
     url: "https://somnia.network",
   },

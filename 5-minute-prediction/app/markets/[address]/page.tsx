@@ -135,7 +135,7 @@ export default function MarketDetailPage() {
       // keep last ~5 minutes if UI is open (60 points at 5s sampling)
       return next.slice(-60);
     });
-  }, [currentRound?.epoch, currentRound?.upPool, currentRound?.downPool]);
+  }, [currentRound]);
 
   useEffect(() => {
     // poll round data so the chart becomes a real "two-line" time series

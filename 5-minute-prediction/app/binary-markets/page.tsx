@@ -319,6 +319,25 @@ export default function BinaryMarketsPage() {
     { id: "sports", label: "Sports" },
   ];
 
+  const categoryCounts: Record<Category, number> = useMemo(() => {
+    const counts: Record<Category, number> = {
+      all: onchainMarkets.length,
+      crypto: 0,
+      memes: 0,
+      celebs: 0,
+      tech: 0,
+      sports: 0,
+    };
+
+    for (const market of onchainMarkets) {
+      const category = market.category?.toLowerCase() as Category | undefined;
+      if (!category || category === "all") continue;
+      if (category in counts) counts[category] += 1;
+    }
+
+    return counts;
+  }, [onchainMarkets]);
+
   return (
     <div className="py-8">
       <header className="mb-12 max-w-7xl mx-auto px-6">
@@ -511,7 +530,22 @@ export default function BinaryMarketsPage() {
                   }
                 `}
               >
-                {category.label}
+                <span className="inline-flex items-center gap-2">
+                  <span>{category.label}</span>
+                  <span
+                    className={`
+                      min-w-[1.5rem] h-5 px-2 inline-flex items-center justify-center rounded-full text-[11px] font-semibold
+                      ${
+                        selectedCategory === category.id
+                          ? "bg-monad-purple/20 text-white border border-monad-purple/30"
+                          : "bg-white/5 text-gray-300 border border-white/10"
+                      }
+                    `}
+                    aria-label={`${categoryCounts[category.id]} markets`}
+                  >
+                    {categoryCounts[category.id]}
+                  </span>
+                </span>
               </button>
             ))}
           </div>

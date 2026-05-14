@@ -206,7 +206,7 @@ export function MarketServiceControl({
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
           <div className="text-gray-500">createMarket()</div>
           <div className="text-gray-300 mt-1">
-            Admin • every 10m{createCountdown ? <span className="text-gray-500"> (in {createCountdown})</span> : null}
+            Admin • every 5m{createCountdown ? <span className="text-gray-500"> (in {createCountdown})</span> : null}
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">

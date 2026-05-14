@@ -302,3 +302,4 @@ export function getMarketServiceSingleton() {
   if (!g.__marketService) g.__marketService = new MarketService();
   return g.__marketService;
 }
+// create market ( start round , lockPrice ) --> (close price after 5 minute)

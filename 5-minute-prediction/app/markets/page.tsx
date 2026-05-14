@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
@@ -13,6 +14,7 @@ import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
 import { somniaTestnet } from "@/app/config/chains";
 import { getPredictionMarketFactoryAddress } from "@/app/config/predictionAddresses";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
+import { getTokenLogoUrl } from "@/app/config/tokenLogos";
 
 function asAddress(value: string): Address | null {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : null;
@@ -46,74 +48,6 @@ function LaunchStep({ label, value }: { label: string; value: string }) {
       <div className="text-[11px] text-gray-400 font-semibold">{label}</div>
       <div className="mt-1 text-sm font-semibold text-white tabular-nums">{value}</div>
     </div>
-  );
-}
-
-function BitcoinIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <circle cx="16" cy="16" r="16" fill="#F7931A" />
-      <path
-        fill="#fff"
-        d="M18.37 14.2c.38-2.55-1.56-3.92-4.2-4.83l.86-3.45-2.1-.52-.84 3.36c-.55-.14-1.12-.27-1.68-.4l.85-3.4-2.1-.52-.86 3.45c-.46-.1-.92-.21-1.35-.32v-.01L4.1 7.72l-.55 2.24s1.56.36 1.53.38c.85.21 1 .76.98 1.2l-.98 3.94.22.06-.22-.05-1.37 5.51c-.1.26-.37.66-.98.5.02.03-1.53-.38-1.53-.38l-1.02 2.35 2.64.66c.49.13.98.25 1.46.37l-.87 3.5 2.1.52.86-3.46c.58.16 1.14.3 1.69.44l-.86 3.44 2.1.52.87-3.5c3.6.68 6.3.4 7.44-2.85.92-2.62-.05-4.13-1.95-5.12 1.38-.32 2.43-1.23 2.7-3.11Zm-4.82 6.75c-.66 2.62-5.07 1.2-6.5.85l1.17-4.67c1.42.35 6 .94 5.33 3.82Zm.66-6.79c-.6 2.38-4.26 1.17-5.46.87l1.06-4.24c1.2.3 5.06.86 4.4 3.37Z"
-      />
-    </svg>
-  );
-}
-
-function EthereumIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <circle cx="16" cy="16" r="16" fill="#627EEA" />
-      <path fill="#fff" opacity="0.9" d="M16 4l6.7 11.1L16 18.9 9.3 15.1 16 4z" />
-      <path fill="#fff" opacity="0.7" d="M16 20.1l6.7-4.1L16 28 9.3 16 16 20.1z" />
-    </svg>
-  );
-}
-
-function SolanaIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="solg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#00FFA3" />
-          <stop offset="1" stopColor="#DC1FFF" />
-        </linearGradient>
-      </defs>
-      <circle cx="16" cy="16" r="16" fill="#0B0B14" />
-      <path
-        d="M8.8 12.2c.3-.3.7-.5 1.1-.5h14.6c.9 0 1.3 1 .7 1.6l-2 2c-.3.3-.7.5-1.1.5H7.5c-.9 0-1.3-1-.7-1.6l2-2Z"
-        fill="url(#solg)"
-      />
-      <path
-        d="M8.8 18.3c.3-.3.7-.5 1.1-.5h14.6c.9 0 1.3 1 .7 1.6l-2 2c-.3.3-.7.5-1.1.5H7.5c-.9 0-1.3-1-.7-1.6l2-2Z"
-        fill="url(#solg)"
-        opacity="0.9"
-      />
-      <path
-        d="M23.2 9.1c.3-.3.7-.5 1.1-.5h.2c.9 0 1.3 1 .7 1.6l-2 2c-.3.3-.7.5-1.1.5H7.5c-.9 0-1.3-1-.7-1.6l2-2c.3-.3.7-.5 1.1-.5h13.3Z"
-        fill="url(#solg)"
-        opacity="0.75"
-      />
-    </svg>
-  );
-}
-
-function SomniaIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="somg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#876DFF" />
-          <stop offset="1" stopColor="#00D4FF" />
-        </linearGradient>
-      </defs>
-      <circle cx="16" cy="16" r="16" fill="#0B0B14" />
-      <path
-        d="M10.2 12.1c0-2.6 2.1-4.6 5.2-4.6 2 0 3.8.7 5 1.8.5.5.5 1.2 0 1.7l-.9.9c-.5.5-1.3.5-1.8 0-.6-.6-1.4-1-2.4-1-1.4 0-2.3.7-2.3 1.7 0 2.9 8.3 1.3 8.3 7 0 2.8-2.3 4.7-5.7 4.7-2.3 0-4.3-.8-5.7-2.3-.5-.5-.5-1.2 0-1.7l.9-.9c.5-.5 1.3-.5 1.8 0 .8.9 1.8 1.4 3 1.4 1.6 0 2.6-.7 2.6-1.8 0-3-8.3-1.3-8.3-6.9Z"
-        fill="url(#somg)"
-      />
-    </svg>
   );
 }
 
@@ -173,19 +107,6 @@ export default function MarketsPage() {
     return asNumber;
   }, [headerPriceData]);
 
-  const [timeLeft, setTimeLeft] = useState("02:00");
-  useEffect(() => {
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsedSec = Math.floor((Date.now() - start) / 1000);
-      const remaining = Math.max(0, 120 - elapsedSec);
-      const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
-      const ss = String(remaining % 60).padStart(2, "0");
-      setTimeLeft(`${mm}:${ss}`);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const [serviceNow, setServiceNow] = useState(() => Date.now());
   useEffect(() => {
     const tick = setInterval(() => setServiceNow(Date.now()), 1_000);
@@ -201,8 +122,6 @@ export default function MarketsPage() {
     refetchInterval: 3_000,
     staleTime: 0,
   });
-
-  const headerTimer = serviceState?.running ? timeLeft : "00:00";
 
   const nextLaunchIn = serviceState?.nextCreateAt ? formatCountdown(serviceState.nextCreateAt - serviceNow) : null;
   const lockIn = serviceState?.nextLockAt ? formatCountdown(serviceState.nextLockAt - serviceNow) : null;
@@ -245,11 +164,6 @@ export default function MarketsPage() {
       <div className="flex items-start justify-between gap-4 mb-2">
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Prediction Markets</h1>
         <div className="hidden sm:flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-            <Clock className="h-4 w-4 text-monad-purple" />
-            <span className="text-white font-semibold tabular-nums">{headerTimer}</span>
-            <span className="text-xs text-gray-400 font-semibold">5m</span>
-          </div>
           <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
             <span
               className={[
@@ -315,21 +229,32 @@ export default function MarketsPage() {
       </div>
 
       <div>
-        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3 min-w-0">
               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 flex items-center gap-3">
                 <div className="text-emerald-200 font-semibold tabular-nums text-lg">
                   {headerPriceLoading ? "—" : headerPriceUsd != null ? `$${headerPriceUsd.toFixed(4)}` : "—"}
                 </div>
-                <div className="text-xs text-gray-300 font-semibold tracking-wide">{headerSymbol}USD</div>
+                <div className="flex items-center gap-2">
+                  {getTokenLogoUrl({ symbol: headerSymbol, coinId: null }) ? (
+                    <Image
+                      src={getTokenLogoUrl({ symbol: headerSymbol, coinId: null })!}
+                      alt={`${headerSymbol} logo`}
+                      width={18}
+                      height={18}
+                      className="rounded-full"
+                    />
+                  ) : null}
+                  <div className="text-xs text-gray-300 font-semibold tracking-wide">{headerSymbol}USD</div>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 flex items-center gap-2">
                 {([
-                  { key: "bitcoin", label: "BTC", icon: <BitcoinIcon className="h-4 w-4" /> },
-                  { key: "ethereum", label: "ETH", icon: <EthereumIcon className="h-4 w-4" /> },
-                  { key: "solana", label: "SOL", icon: <SolanaIcon className="h-4 w-4" /> },
-                  { key: "somnia", label: "SOMI", icon: <SomniaIcon className="h-4 w-4" /> },
+                  { key: "bitcoin", label: "BTC", logo: getTokenLogoUrl({ symbol: "BTC", coinId: null }) },
+                  { key: "ethereum", label: "ETH", logo: getTokenLogoUrl({ symbol: "ETH", coinId: null }) },
+                  { key: "solana", label: "SOL", logo: getTokenLogoUrl({ symbol: "SOL", coinId: null }) },
+                  { key: "somnia", label: "SOMI", logo: getTokenLogoUrl({ symbol: "SOMI", coinId: null }) },
                 ] as const).map((t) => (
                   <button
                     key={t.key}
@@ -343,7 +268,7 @@ export default function MarketsPage() {
                     aria-label={`Filter ${t.label}`}
                     title={t.label}
                   >
-                    {t.icon}
+                    {t.logo ? <Image src={t.logo} alt={`${t.label} logo`} width={18} height={18} className="rounded-full" /> : null}
                     <span className="hidden sm:inline">{t.label}</span>
                   </button>
                 ))}
@@ -370,10 +295,6 @@ export default function MarketsPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="sm:hidden rounded-2xl border border-white/10 bg-black/20 px-3 py-2 flex items-center gap-2">
-                <span className="text-white font-semibold tabular-nums">{headerTimer}</span>
-                <span className="text-xs text-gray-400 font-semibold">5m</span>
-              </div>
               <button
                 className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
                 aria-label="Help"

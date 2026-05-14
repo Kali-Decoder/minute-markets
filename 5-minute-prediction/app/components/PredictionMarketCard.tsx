@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { formatEther } from "viem";
@@ -8,6 +9,7 @@ import { formatUnits } from "viem";
 import { Clock, ExternalLink } from "lucide-react";
 import { somniaTestnet } from "@/app/config/chains";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
+import { getTokenLogoUrl } from "@/app/config/tokenLogos";
 
 const ROUND_STATUS_LABEL: Record<number, string> = {
   0: "LIVE",
@@ -68,6 +70,8 @@ export function PredictionMarketCard({
     enabled: !!coinSymbol,
     refetchInterval: 10000,
   });
+
+  const tokenLogoUrl = useMemo(() => getTokenLogoUrl({ symbol: coinSymbol, coinId }), [coinSymbol, coinId]);
 
   const currentPriceUsd = useMemo(() => {
     const coinData = coinPriceData?.data?.[0];
@@ -170,9 +174,15 @@ export function PredictionMarketCard({
         </div>
 
         <div className="relative p-4">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            {tokenLogoUrl ? (
+              <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={22} height={22} className="rounded-full" />
+            ) : null}
+            <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ?? coinId}</div>
+          </div>
           <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-10 text-center">
-            <div className="text-2xl font-bold text-white">Entry starts</div>
-            <div className="mt-3 text-4xl font-extrabold tracking-tight text-white tabular-nums">{entryStartsIn ?? "—"}</div>
+            <div className="text-xl sm:text-2xl font-bold text-white">Entry starts</div>
+            <div className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-white tabular-nums">{entryStartsIn ?? "—"}</div>
           </div>
 
           <div className="mt-3 text-[11px] text-gray-500 font-mono truncate">{address}</div>
@@ -223,6 +233,12 @@ export function PredictionMarketCard({
         </div>
 
         <div className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            {tokenLogoUrl ? (
+              <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={22} height={22} className="rounded-full" />
+            ) : null}
+            <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
+          </div>
           <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
             <div className="px-4 pt-4 pb-3 text-center">
               <div className={["text-lg font-extrabold tracking-wide", loserText].join(" ")}>{loserSide ?? "—"}</div>
@@ -232,13 +248,15 @@ export function PredictionMarketCard({
             <div className="px-4 pb-4">
               <div className={["rounded-2xl border p-4", winnerColor].join(" ")}>
                 <div className="text-[12px] font-semibold text-gray-400 tracking-wide">CLOSED PRICE</div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <div className={["text-3xl font-extrabold tabular-nums text-emerald-200"].join(" ")}>
-                    {closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[28px] sm:text-3xl leading-none font-extrabold tabular-nums text-emerald-200 truncate">
+                      {closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}
+                    </div>
                   </div>
                   <div
                     className={[
-                      "rounded-xl px-3 py-2 text-sm font-bold tabular-nums border",
+                      "rounded-xl px-3 py-2 text-sm font-bold tabular-nums border whitespace-nowrap",
                       deltaUsd == null
                         ? "border-white/10 bg-white/5 text-gray-300"
                         : deltaIsUp
@@ -250,12 +268,12 @@ export function PredictionMarketCard({
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div className="text-gray-300">
                     <div className="text-gray-400">Locked Price:</div>
                     <div className="mt-1 font-semibold tabular-nums text-emerald-100">{lockUsd != null ? `$${lockUsd.toFixed(4)}` : "—"}</div>
                   </div>
-                  <div className="text-gray-300 text-right">
+                  <div className="text-gray-300 sm:text-right">
                     <div className="text-gray-400">Prize Pool:</div>
                     <div className="mt-1 font-semibold tabular-nums">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} ETH` : "—"}</div>
                   </div>
@@ -329,12 +347,17 @@ export function PredictionMarketCard({
 
         <div className="mt-3 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] text-gray-400 truncate">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
-            <div className="text-white text-lg font-semibold truncate">{name}</div>
+            <div className="flex items-center gap-2 min-w-0">
+              {tokenLogoUrl ? (
+                <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={18} height={18} className="rounded-full flex-none" />
+              ) : null}
+              <div className="text-[11px] text-gray-400 truncate">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
+            </div>
+            <div className="text-white text-base sm:text-lg font-semibold truncate">{name}</div>
           </div>
           <div className="text-right">
             <div className="text-[11px] text-gray-400">Last price</div>
-            <div className="text-emerald-200 font-semibold tabular-nums">
+            <div className="text-emerald-200 font-semibold tabular-nums text-sm sm:text-base whitespace-nowrap">
               {priceLoading ? "Price…" : currentPriceUsd != null ? `$${currentPriceUsd.toFixed(4)}` : "—"}
             </div>
           </div>
@@ -349,14 +372,14 @@ export function PredictionMarketCard({
             <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-300">{symbol}</span>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="text-gray-400">Locked Price</div>
-              <div className="mt-1 font-semibold tabular-nums text-emerald-100">{lockUsd != null ? `$${lockUsd.toFixed(4)}` : "—"}</div>
+              <div className="mt-1 font-semibold tabular-nums text-emerald-100 truncate">{lockUsd != null ? `$${lockUsd.toFixed(4)}` : "—"}</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-right">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:text-right">
               <div className="text-gray-400">Close Price</div>
-              <div className="mt-1 font-semibold tabular-nums text-emerald-100">{closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}</div>
+              <div className="mt-1 font-semibold tabular-nums text-emerald-100 truncate">{closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}</div>
             </div>
           </div>
 

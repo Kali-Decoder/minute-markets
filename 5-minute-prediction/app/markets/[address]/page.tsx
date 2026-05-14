@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   useMarketStartRound,
   useMarketUserBet,
 } from "@/app/hooks/usePredictionMarketContract";
+import { getTokenLogoUrl, tokenSymbolFromCoinId } from "@/app/config/tokenLogos";
 
 function asAddress(value: string | string[] | undefined): Address | undefined {
   if (typeof value !== "string") return undefined;
@@ -100,6 +102,16 @@ export default function MarketDetailPage() {
 
   const [amountEth, setAmountEth] = useState<string>("0.01");
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const coinId = typeof meta.coinId.data === "string" ? meta.coinId.data : null;
+  const derivedSymbol = useMemo(() => {
+    const fromCoinId = tokenSymbolFromCoinId(coinId);
+    if (fromCoinId) return fromCoinId;
+    const fromMarketSymbol = typeof meta.marketSymbol.data === "string" ? meta.marketSymbol.data : null;
+    const m = (fromMarketSymbol || "").trim().match(/^[A-Za-z]{2,6}/)?.[0];
+    return m ? m.toUpperCase() : null;
+  }, [coinId, meta.marketSymbol.data]);
+  const tokenLogoUrl = useMemo(() => getTokenLogoUrl({ symbol: derivedSymbol, coinId }), [derivedSymbol, coinId]);
 
   const betState = useMemo(() => {
     if (!currentRound) return { canBet: false, reason: "Round not loaded yet." };
@@ -276,15 +288,24 @@ export default function MarketDetailPage() {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">
-          {typeof meta.marketName.data === "string" ? meta.marketName.data : "Market"}
-          {typeof meta.marketSymbol.data === "string" && meta.marketSymbol.data ? (
-            <span className="ml-2 text-base text-gray-400">({meta.marketSymbol.data})</span>
+        <div className="flex items-start gap-3">
+          {tokenLogoUrl ? (
+            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-black/20 flex items-center justify-center flex-none">
+              <Image src={tokenLogoUrl} alt={`${derivedSymbol ?? "Token"} logo`} width={28} height={28} className="rounded-full" />
+            </div>
           ) : null}
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Coin ID: {typeof meta.coinId.data === "string" ? meta.coinId.data : "—"}
-        </p>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">
+              {typeof meta.marketName.data === "string" ? meta.marketName.data : "Market"}
+              {typeof meta.marketSymbol.data === "string" && meta.marketSymbol.data ? (
+                <span className="ml-2 text-base text-gray-400">({meta.marketSymbol.data})</span>
+              ) : null}
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">
+              Coin ID: {coinId ?? "—"}
+            </p>
+          </div>
+        </div>
         <p className="text-sm text-gray-400 mt-3">
           Contract Balance: {typeof balanceRaw === "bigint" ? `${formatEther(balanceRaw)} ETH` : "—"}
         </p>

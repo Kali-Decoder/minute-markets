@@ -41,6 +41,15 @@ const nextConfig: NextConfig = {
     
     return config;
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "bin.bnbstatic.com",
+        pathname: "/static/assets/logos/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

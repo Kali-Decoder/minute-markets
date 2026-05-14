@@ -42,6 +42,9 @@ const nextConfig: NextConfig = {
     return config;
   },
   images: {
+    // Netlify/static deployments may not support Next image optimization at runtime.
+    // Keep dev optimized (so local behaves normally); serve images as-is in prod.
+    unoptimized: process.env.NODE_ENV === "production",
     remotePatterns: [
       {
         protocol: "https",

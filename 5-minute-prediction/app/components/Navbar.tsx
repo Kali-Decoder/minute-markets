@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { WalletConnect } from "./WalletConnect";
 import { useAccount } from "wagmi";
 import { ADMIN_ADDRESS } from "@/app/config/admin";
+import { publicAssetUrl } from "@/app/config/publicAsset";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -44,7 +45,7 @@ export function Navbar() {
         {/* 1. Left: Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0" onClick={() => setIsMobileMenuOpen(false)}>
           <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl overflow-hidden border border-white/10 bg-black shadow-[0_0_18px_-4px_rgba(255,255,255,0.18)]">
-            <Image src="/mm-logo.svg" alt="MinuteMarkets" fill className="object-cover" priority />
+            <Image src={publicAssetUrl("/mm-logo.svg")} alt="MinuteMarkets" fill className="object-cover" priority />
           </div>
           <span className="text-lg sm:text-xl font-bold tracking-tight text-white">
             <span className="text-monad-purple">Minute</span><span className="text-white">Markets</span>

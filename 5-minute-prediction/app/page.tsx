@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { publicAssetUrl } from "@/app/config/publicAsset";
 import {
   Activity,
   AlertTriangle,
@@ -31,7 +32,7 @@ export default function Home() {
 
           <div className="flex justify-center mb-6 sm:mb-8">
             <div className="relative h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 rounded-3xl overflow-hidden border border-white/10 bg-black shadow-[0_0_40px_-12px_rgba(255,255,255,0.28)]">
-              <Image src="/mm-logo.svg" alt="MinuteMarkets" fill className="object-cover" priority />
+              <Image src={publicAssetUrl("/mm-logo.svg")} alt="MinuteMarkets" fill className="object-cover" priority />
             </div>
           </div>
 

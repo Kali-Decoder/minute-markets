@@ -4,12 +4,13 @@ import { Navbar } from "./components/Navbar";
 import { Providers } from "./providers";
 import { FontLoader } from "./components/FontLoader";
 import { AppLoader } from "./components/AppLoader";
+import { publicAssetUrl } from "@/app/config/publicAsset";
 
 export const metadata: Metadata = {
   title: "MinuteMarkets | 5-Minute Prediction Market",
   description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
   icons: {
-    icon: [{ url: "/mm-logo.svg", type: "image/svg+xml" }],
+    icon: [{ url: publicAssetUrl("/mm-logo.svg"), type: "image/svg+xml" }],
   },
   openGraph: {
     title: "MinuteMarkets | 5-Minute Prediction Market",

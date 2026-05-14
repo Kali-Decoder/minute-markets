@@ -44,7 +44,7 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mb-12 sm:mb-16 px-2">
             <Link
-              href="/binary-markets"
+              href="/markets"
               className="group flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl bg-monad-purple text-white font-semibold text-base sm:text-lg transition-all hover:shadow-[0_0_30px_-5px_rgba(135,109,255,0.5)] hover:scale-105"
             >
               Explore Markets
@@ -298,4 +298,3 @@ export default function Home() {
     </div>
   );
 }
-

@@ -49,7 +49,7 @@ export function Navbar() {
           
           {/* Nav Links (Desktop) */}
           <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-400">
-            <Link href="/binary-markets" className="hover:text-white transition-colors flex items-center gap-2">
+            <Link href="/markets" className="hover:text-white transition-colors flex items-center gap-2">
               Markets
             </Link>
             <Link href="/rewards" className="hover:text-white transition-colors flex items-center gap-2">
@@ -97,7 +97,7 @@ export function Navbar() {
             {/* Mobile Nav Links */}
             <div className="space-y-2 pt-4 border-t border-white/10">
               <Link
-                href="/binary-markets"
+                href="/markets"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block px-4 py-3 rounded-xl text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
               >

@@ -1,0 +1,170 @@
+import type { Abi } from "viem";
+
+export const PredictionMarketFactoryABI = [
+  {
+    inputs: [{ internalType: "address", name: "_treasury", type: "address" }],
+    stateMutability: "nonpayable",
+    type: "constructor",
+  },
+  {
+    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    name: "OwnableInvalidOwner",
+    type: "error",
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "OwnableUnauthorizedAccount",
+    type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "market", type: "address" },
+      { indexed: false, internalType: "string", name: "marketName", type: "string" },
+      { indexed: false, internalType: "string", name: "marketSymbol", type: "string" },
+      { indexed: false, internalType: "string", name: "coinId", type: "string" },
+    ],
+    name: "MarketCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "market", type: "address" },
+      { indexed: false, internalType: "bool", name: "active", type: "bool" },
+    ],
+    name: "MarketStatusUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "previousOwner", type: "address" },
+      { indexed: true, internalType: "address", name: "newOwner", type: "address" },
+    ],
+    name: "OwnershipTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: false, internalType: "address", name: "treasury", type: "address" }],
+    name: "TreasuryUpdated",
+    type: "event",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "allMarkets",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "string", name: "_marketName", type: "string" },
+      { internalType: "string", name: "_marketSymbol", type: "string" },
+      { internalType: "string", name: "_coinId", type: "string" },
+    ],
+    name: "createMarket",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllMarkets",
+    outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "market", type: "address" }],
+    name: "getMarketInfo",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "marketAddress", type: "address" },
+          { internalType: "string", name: "marketName", type: "string" },
+          { internalType: "string", name: "marketSymbol", type: "string" },
+          { internalType: "string", name: "coinId", type: "string" },
+          { internalType: "address", name: "creator", type: "address" },
+          { internalType: "uint256", name: "createdAt", type: "uint256" },
+          { internalType: "bool", name: "active", type: "bool" },
+        ],
+        internalType: "struct PredictionMarketFactory.MarketInfo",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "market", type: "address" }],
+    name: "isMarketActive",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "markets",
+    outputs: [
+      { internalType: "address", name: "marketAddress", type: "address" },
+      { internalType: "string", name: "marketName", type: "string" },
+      { internalType: "string", name: "marketSymbol", type: "string" },
+      { internalType: "string", name: "coinId", type: "string" },
+      { internalType: "address", name: "creator", type: "address" },
+      { internalType: "uint256", name: "createdAt", type: "uint256" },
+      { internalType: "bool", name: "active", type: "bool" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "owner",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  { inputs: [], name: "renounceOwnership", outputs: [], stateMutability: "nonpayable", type: "function" },
+  {
+    inputs: [{ internalType: "address", name: "_treasury", type: "address" }],
+    name: "setTreasury",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalMarkets",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "newOwner", type: "address" }],
+    name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "treasury",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "market", type: "address" },
+      { internalType: "bool", name: "active", type: "bool" },
+    ],
+    name: "updateMarketStatus",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const satisfies Abi;
+

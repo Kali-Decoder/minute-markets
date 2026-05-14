@@ -18,6 +18,14 @@ type ServiceState = {
     createdAt: number;
     txHash: Hash;
   };
+  lastActions?: {
+    startedAt: number | null;
+    lockRequestedAt: number | null;
+    closeRequestedAt: number | null;
+    startTxHash: Hash | null;
+    lockTxHash: Hash | null;
+    closeTxHash: Hash | null;
+  };
 };
 
 type StartOptions = {
@@ -54,6 +62,14 @@ export class MarketService {
     nextCreateAt: null,
     nextLockAt: null,
     nextCloseAt: null,
+    lastActions: {
+      startedAt: null,
+      lockRequestedAt: null,
+      closeRequestedAt: null,
+      startTxHash: null,
+      lockTxHash: null,
+      closeTxHash: null,
+    },
   };
 
   getState(): ServiceState {
@@ -70,6 +86,14 @@ export class MarketService {
     this.state.nextCreateAt = null;
     this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
+    this.state.lastActions = {
+      startedAt: null,
+      lockRequestedAt: null,
+      closeRequestedAt: null,
+      startTxHash: null,
+      lockTxHash: null,
+      closeTxHash: null,
+    };
   }
 
   start(options: StartOptions) {
@@ -97,8 +121,18 @@ export class MarketService {
           createdAt: now,
           txHash,
         };
+        this.state.lastActions = {
+          startedAt: null,
+          lockRequestedAt: null,
+          closeRequestedAt: null,
+          startTxHash: null,
+          lockTxHash: null,
+          closeTxHash: null,
+        };
 
-        await this.startRound(marketAddress);
+        const startHash = await this.startRound(marketAddress);
+        this.state.lastActions.startedAt = Date.now();
+        this.state.lastActions.startTxHash = startHash;
 
         this.state.nextLockAt = now + options.lockAfterMs;
         this.state.nextCloseAt = now + options.closeAfterMs;
@@ -215,6 +249,16 @@ export class MarketService {
       value: deposit,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
+    this.state.lastActions = this.state.lastActions ?? {
+      startedAt: null,
+      lockRequestedAt: null,
+      closeRequestedAt: null,
+      startTxHash: null,
+      lockTxHash: null,
+      closeTxHash: null,
+    };
+    this.state.lastActions.lockRequestedAt = Date.now();
+    this.state.lastActions.lockTxHash = txHash;
     return txHash;
   }
 
@@ -239,6 +283,16 @@ export class MarketService {
       value: deposit,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
+    this.state.lastActions = this.state.lastActions ?? {
+      startedAt: null,
+      lockRequestedAt: null,
+      closeRequestedAt: null,
+      startTxHash: null,
+      lockTxHash: null,
+      closeTxHash: null,
+    };
+    this.state.lastActions.closeRequestedAt = Date.now();
+    this.state.lastActions.closeTxHash = txHash;
     return txHash;
   }
 }

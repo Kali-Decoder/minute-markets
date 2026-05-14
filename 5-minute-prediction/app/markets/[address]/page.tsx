@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { formatEther, formatUnits, parseEther, type Address } from "viem";
 import { useAccount } from "wagmi";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   useMarketBetDown,
   useMarketBetUp,
@@ -15,6 +15,8 @@ import {
   useMarketCurrentRound,
   useMarketMeta,
   useMarketOwner,
+  useMarketRequestClosePrice,
+  useMarketRequestLockPrice,
   useMarketStartRound,
   useMarketUserBet,
 } from "@/app/hooks/usePredictionMarketContract";
@@ -93,6 +95,8 @@ export default function MarketDetailPage() {
   const betDown = useMarketBetDown(market);
   const claim = useMarketClaim(market);
   const startRoundTx = useMarketStartRound(market);
+  const lockTx = useMarketRequestLockPrice(market);
+  const closeTx = useMarketRequestClosePrice(market);
 
   const [amountEth, setAmountEth] = useState<string>("0.01");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -117,16 +121,30 @@ export default function MarketDetailPage() {
     };
   }, [currentRound]);
 
-  const poolChartData = useMemo(() => {
-    if (!currentRound) return [];
-    return [
-      {
-        name: "Pools",
-        up: Number(formatEther(currentRound.upPool)),
-        down: Number(formatEther(currentRound.downPool)),
-      },
-    ];
-  }, [currentRound]);
+  const [poolSeries, setPoolSeries] = useState<Array<{ t: number; up: number; down: number }>>([]);
+
+  useEffect(() => {
+    if (!currentRound) return;
+    const point = {
+      t: Date.now(),
+      up: Number(formatEther(currentRound.upPool)),
+      down: Number(formatEther(currentRound.downPool)),
+    };
+    setPoolSeries((prev) => {
+      const next = [...prev, point];
+      // keep last ~5 minutes if UI is open (60 points at 5s sampling)
+      return next.slice(-60);
+    });
+  }, [currentRound?.epoch, currentRound?.upPool, currentRound?.downPool]);
+
+  useEffect(() => {
+    // poll round data so the chart becomes a real "two-line" time series
+    if (!market) return;
+    const id = setInterval(() => {
+      void refetchRound();
+    }, 5_000);
+    return () => clearInterval(id);
+  }, [market, refetchRound]);
 
   const claimable = useMemo(() => {
     if (!currentRound || !userBet) return 0n;
@@ -181,6 +199,28 @@ export default function MarketDetailPage() {
       await doRefetchAll();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to start round.");
+    }
+  };
+
+  const doRequestLock = async () => {
+    setActionError(null);
+    try {
+      if (!currentEpoch) throw new Error("Current epoch not available.");
+      await lockTx.requestLockPrice(currentEpoch);
+      await doRefetchAll();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to request lock price.");
+    }
+  };
+
+  const doRequestClose = async () => {
+    setActionError(null);
+    try {
+      if (!currentEpoch) throw new Error("Current epoch not available.");
+      await closeTx.requestClosePrice(currentEpoch);
+      await doRefetchAll();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to request close price.");
     }
   };
 
@@ -294,6 +334,40 @@ export default function MarketDetailPage() {
                 </div>
               ) : null}
 
+              {isOwner && currentRound.epoch !== 0n ? (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={doRequestLock}
+                    disabled={
+                      lockTx.isPending ||
+                      lockTx.isConfirming ||
+                      currentRound.status !== 0 ||
+                      currentRound.lockPrice !== 0n ||
+                      BigInt(Math.floor(Date.now() / 1000)) < currentRound.lockTimestamp
+                    }
+                    className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-yellow-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {lockTx.isPending || lockTx.isConfirming ? "Requesting lock…" : "Request Lock Price (Admin)"}
+                  </button>
+                  <button
+                    onClick={doRequestClose}
+                    disabled={
+                      closeTx.isPending ||
+                      closeTx.isConfirming ||
+                      currentRound.status !== 1 ||
+                      currentRound.closePrice !== 0n ||
+                      BigInt(Math.floor(Date.now() / 1000)) < currentRound.closeTimestamp
+                    }
+                    className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-blue-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {closeTx.isPending || closeTx.isConfirming ? "Requesting close…" : "Request Close Price (Admin)"}
+                  </button>
+                  <p className="sm:col-span-2 text-[11px] text-gray-500">
+                    Lock enabled after lock time and only while round is LIVE. Close enabled after close time and only while round is LOCKED.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
                   <span>Up vs Down (Current Round)</span>
@@ -303,9 +377,9 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="h-16">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={poolChartData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis type="category" dataKey="name" hide />
+                    <LineChart data={poolSeries} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                      <XAxis dataKey="t" hide />
+                      <YAxis hide domain={[0, "dataMax"]} />
                       <Tooltip
                         cursor={false}
                         content={({ active, payload }) => {
@@ -314,15 +388,15 @@ export default function MarketDetailPage() {
                           const down = payload.find((p) => p.dataKey === "down")?.value as number | undefined;
                           return (
                             <div className="rounded-lg border border-white/10 bg-black/80 px-3 py-2 text-xs text-white">
-                              <div>UP: {up?.toFixed(4)} ETH</div>
-                              <div>DOWN: {down?.toFixed(4)} ETH</div>
+                              <div>UP: {typeof up === "number" ? up.toFixed(4) : "—"} ETH</div>
+                              <div>DOWN: {typeof down === "number" ? down.toFixed(4) : "—"} ETH</div>
                             </div>
                           );
                         }}
                       />
-                      <Bar dataKey="up" stackId="a" fill="#22c55e" radius={[8, 0, 0, 8]} />
-                      <Bar dataKey="down" stackId="a" fill="#ef4444" radius={[0, 8, 8, 0]} />
-                    </BarChart>
+                      <Line type="monotone" dataKey="up" stroke="#22c55e" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="down" stroke="#ef4444" strokeWidth={2} dot={false} />
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>

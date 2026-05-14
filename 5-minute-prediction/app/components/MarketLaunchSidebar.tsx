@@ -75,9 +75,9 @@ export function MarketLaunchSidebar() {
   const progress = createdAt
     ? {
         created: true,
-        started: true,
-        locked: typeof state?.nextLockAt === "number" ? now >= state.nextLockAt : false,
-        closed: typeof state?.nextCloseAt === "number" ? now >= state.nextCloseAt : false,
+        started: !!state?.lastActions?.startTxHash,
+        locked: !!state?.lastActions?.lockTxHash,
+        closed: !!state?.lastActions?.closeTxHash,
       }
     : { created: false, started: false, locked: false, closed: false };
 
@@ -129,12 +129,12 @@ export function MarketLaunchSidebar() {
           <StepRow
             done={progress.locked}
             title="Lock price"
-            subtitle={lockIn ? `In ${lockIn}` : "After +5m"}
+            subtitle={progress.locked ? "Done" : lockIn ? `In ${lockIn}` : "After +5m"}
           />
           <StepRow
             done={progress.closed}
             title="Close price"
-            subtitle={closeIn ? `In ${closeIn}` : "After +10m"}
+            subtitle={progress.closed ? "Done" : closeIn ? `In ${closeIn}` : "After +10m"}
           />
         </div>
       </div>

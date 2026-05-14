@@ -7,7 +7,6 @@ import { useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
 import { PredictionMarketCard } from "@/app/components/PredictionMarketCard";
-import { MarketServiceControl } from "@/app/components/MarketServiceControl";
 import { MarketLaunchSidebar } from "@/app/components/MarketLaunchSidebar";
 import { usePredictionMarketFactoryCreateMarket, usePredictionMarketFactoryGetAllMarkets, usePredictionMarketFactoryGetMarketInfo } from "@/app/hooks/usePredictionMarketFactory";
 import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
@@ -141,15 +140,14 @@ export default function MarketsPage() {
           <ArrowLeft className="h-4 w-4" />
           Home
         </Link>
-
-        <button
+        {/* <button
           onClick={() => setIsCreateOpen(true)}
           disabled={!canCreate}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-monad-purple text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="h-4 w-4" />
           Create Market
-        </button>
+        </button> */}
       </div>
 
       <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Prediction Markets</h1>
@@ -159,9 +157,6 @@ export default function MarketsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
-          {/* Admin-only controls (keep separate from the user sidebar) */}
-          <MarketServiceControl defaultVariant="compact" showVariantToggle={true} />
-
           <div className="flex flex-wrap items-center gap-2 mb-6">
             {([
               { key: "all", label: "All", icon: <Coins className="h-4 w-4" /> },

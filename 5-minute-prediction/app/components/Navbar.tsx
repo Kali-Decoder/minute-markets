@@ -5,9 +5,13 @@ import { Search, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 // import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { WalletConnect } from "./WalletConnect";
+import { useAccount } from "wagmi";
+import { ADMIN_ADDRESS } from "@/app/config/admin";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { address } = useAccount();
+  const isAdmin = !!address && address.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -55,6 +59,11 @@ export function Navbar() {
             <Link href="/rewards" className="hover:text-white transition-colors flex items-center gap-2">
               Rewards
             </Link>
+            {isAdmin ? (
+              <Link href="/admin" className="hover:text-white transition-colors flex items-center gap-2">
+                Admin
+              </Link>
+            ) : null}
           </div>
 
           {/* Divider (Desktop) */}
@@ -110,6 +119,15 @@ export function Navbar() {
               >
                 Rewards
               </Link>
+              {isAdmin ? (
+                <Link
+                  href="/admin"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-4 py-3 rounded-xl text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Admin
+                </Link>
+              ) : null}
             </div>
 
             {/* Mobile Wallet Connect */}

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Address, Hash } from "viem";
+import { useAccount } from "wagmi";
+import { ADMIN_ADDRESS } from "@/app/config/admin";
 
 type ServiceState = {
   running: boolean;
@@ -10,6 +12,14 @@ type ServiceState = {
   nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: { address: Address; coinId: string; createdAt: number; txHash: Hash };
+  lastActions?: {
+    startedAt?: number | null;
+    lockRequestedAt?: number | null;
+    closeRequestedAt?: number | null;
+    startTxHash?: Hash | null;
+    lockTxHash?: Hash | null;
+    closeTxHash?: Hash | null;
+  };
 };
 
 function formatCountdown(ms: number): string {
@@ -28,6 +38,11 @@ export function MarketServiceControl({
   defaultVariant?: "compact" | "hero";
   showVariantToggle?: boolean;
 } = {}) {
+  const { address } = useAccount();
+  const isAdmin = useMemo(() => {
+    if (!address) return false;
+    return address.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
+  }, [address]);
   const [variant, setVariant] = useState<"compact" | "hero">(defaultVariant);
   const allowToggle = showVariantToggle;
   const [state, setState] = useState<ServiceState | null>(null);
@@ -84,6 +99,17 @@ export function MarketServiceControl({
       setLoading(false);
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 mb-6">
+        <div className="text-sm text-gray-300 font-medium">Admin Board</div>
+        <div className="text-xs text-gray-500 mt-1">
+          Connect the admin wallet to view controls. Admin: <span className="text-gray-400">{ADMIN_ADDRESS}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import type { Address } from "viem";
 import { formatEther } from "viem";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ExternalLink } from "lucide-react";
+import { somniaTestnet } from "@/app/config/chains";
 
 const ROUND_STATUS_LABEL: Record<number, string> = {
   0: "LIVE",
@@ -33,14 +35,19 @@ export function PredictionMarketCard({
 }: PredictionMarketCardProps) {
   const hasPools = typeof upPool === "bigint" && typeof downPool === "bigint";
   const chartData = hasPools
-    ? [
-        {
-          name: "Pools",
-          up: Number(formatEther(upPool)),
-          down: Number(formatEther(downPool)),
-        },
-      ]
+    ? (() => {
+        const up = Number(formatEther(upPool));
+        const down = Number(formatEther(downPool));
+        // two points so recharts draws visible line segments
+        return [
+          { x: 0, up, down },
+          { x: 1, up, down },
+        ];
+      })()
     : [];
+
+  const explorerBase = (somniaTestnet.blockExplorers?.default.url || "").replace(/\/$/, "");
+  const explorerUrl = explorerBase ? `${explorerBase}/address/${address}` : "";
 
   return (
     <Link
@@ -59,20 +66,33 @@ export function PredictionMarketCard({
           <p className="text-[11px] text-gray-500 mt-2 truncate">{address}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span
-            className={[
-              "text-[10px] px-2 py-0.5 rounded-full border",
-              roundStatus === 2
-                ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
-                : roundStatus === 1
-                  ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-                  : roundStatus === 3
-                    ? "border-red-500/30 bg-red-500/10 text-red-300"
-                    : "border-green-500/30 bg-green-500/10 text-green-300",
-            ].join(" ")}
-          >
-            {typeof roundStatus === "number" ? ROUND_STATUS_LABEL[roundStatus] ?? `STATUS ${roundStatus}` : "—"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={[
+                "text-[10px] px-2 py-0.5 rounded-full border",
+                roundStatus === 2
+                  ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                  : roundStatus === 1
+                    ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
+                    : roundStatus === 3
+                      ? "border-red-500/30 bg-red-500/10 text-red-300"
+                      : "border-green-500/30 bg-green-500/10 text-green-300",
+              ].join(" ")}
+            >
+              {typeof roundStatus === "number" ? ROUND_STATUS_LABEL[roundStatus] ?? `STATUS ${roundStatus}` : "—"}
+            </span>
+            <a
+              href={explorerUrl}
+              onClick={(e) => e.stopPropagation()}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center h-6 w-6 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40"
+              aria-label="Open in explorer"
+              title="Open in explorer"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
         </div>
       </div>
 
@@ -90,9 +110,9 @@ export function PredictionMarketCard({
         <div className="h-10">
           {hasPools ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" hide />
+              <LineChart data={chartData} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                <XAxis dataKey="x" hide />
+                <YAxis hide domain={[0, "dataMax"]} />
                 <Tooltip
                   cursor={false}
                   content={({ active, payload }) => {
@@ -101,15 +121,15 @@ export function PredictionMarketCard({
                     const down = payload.find((p) => p.dataKey === "down")?.value as number | undefined;
                     return (
                       <div className="rounded-lg border border-white/10 bg-black/80 px-3 py-2 text-xs text-white">
-                        <div>UP: {up?.toFixed(4)} ETH</div>
-                        <div>DOWN: {down?.toFixed(4)} ETH</div>
+                        <div>UP: {typeof up === "number" ? up.toFixed(4) : "—"} ETH</div>
+                        <div>DOWN: {typeof down === "number" ? down.toFixed(4) : "—"} ETH</div>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="up" stackId="a" fill="#22c55e" radius={[6, 0, 0, 6]} />
-                <Bar dataKey="down" stackId="a" fill="#ef4444" radius={[0, 6, 6, 0]} />
-              </BarChart>
+                <Line type="monotone" dataKey="up" stroke="#22c55e" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="down" stroke="#ef4444" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full rounded-lg border border-white/10 bg-white/5" />

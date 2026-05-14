@@ -204,3 +204,64 @@ export function useMarketStartRound(market?: Address) {
 
   return { startRound, hash, error, isPending, isConfirming, isConfirmed, receipt, reset };
 }
+
+export function useMarketRequestDeposit(market?: Address, enabled = true) {
+  return useReadContract({
+    address: market,
+    abi: PredictionMarketABI,
+    functionName: "REQUEST_DEPOSIT",
+    query: { enabled: enabled && !!market },
+  });
+}
+
+export function useMarketRequestLockPrice(market?: Address) {
+  const { address: userAddress, isConnected } = useAccount();
+  const chainError = useEnsureSomniaTestnet();
+  const { data: depositRaw } = useMarketRequestDeposit(market, true);
+  const deposit = typeof depositRaw === "bigint" ? depositRaw : undefined;
+
+  const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
+
+  const requestLockPrice = async (epoch: bigint): Promise<Hash> => {
+    if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
+    if (chainError) throw new Error(chainError);
+    if (!market) throw new Error("Market address is required.");
+    if (!deposit) throw new Error("Required deposit not loaded yet.");
+    return writeContractAsync({
+      address: market,
+      abi: PredictionMarketABI,
+      functionName: "requestLockPrice",
+      args: [epoch],
+      value: deposit,
+    });
+  };
+
+  return { requestLockPrice, deposit, hash, error, isPending, isConfirming, isConfirmed, receipt, reset };
+}
+
+export function useMarketRequestClosePrice(market?: Address) {
+  const { address: userAddress, isConnected } = useAccount();
+  const chainError = useEnsureSomniaTestnet();
+  const { data: depositRaw } = useMarketRequestDeposit(market, true);
+  const deposit = typeof depositRaw === "bigint" ? depositRaw : undefined;
+
+  const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
+
+  const requestClosePrice = async (epoch: bigint): Promise<Hash> => {
+    if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
+    if (chainError) throw new Error(chainError);
+    if (!market) throw new Error("Market address is required.");
+    if (!deposit) throw new Error("Required deposit not loaded yet.");
+    return writeContractAsync({
+      address: market,
+      abi: PredictionMarketABI,
+      functionName: "requestClosePrice",
+      args: [epoch],
+      value: deposit,
+    });
+  };
+
+  return { requestClosePrice, deposit, hash, error, isPending, isConfirming, isConfirmed, receipt, reset };
+}

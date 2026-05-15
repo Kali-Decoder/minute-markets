@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors"; // ✅ Import CORS
 import * as dotenv from "dotenv";
 import marketRouter from "./routes/marketRoutes";
-
+import { marketService } from "./service/marketService";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;

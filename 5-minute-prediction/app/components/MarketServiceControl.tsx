@@ -5,19 +5,21 @@ import type { Address, Hash } from "viem";
 import { useAccount } from "wagmi";
 import { ADMIN_ADDRESS } from "@/app/config/admin";
 
-// ✅ Define your Render Hosted URL here
 const BACKEND_API_BASE = "https://minute-markets.onrender.com/api/market-service";
 
 type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
+  nextLockAt: number | null; // ✅ Restored to map with payload
   nextCloseAt: number | null;
   lastCreatedMarket?: { address: Address; coinId: string; createdAt: number; txHash: Hash };
   lastActions?: {
     startedAt?: number | null;
+    lockRequestedAt?: number | null;
     closeRequestedAt?: number | null;
     startTxHash?: Hash | null;
+    lockTxHash?: Hash | null;
     closeTxHash?: Hash | null;
   };
 };
@@ -61,12 +63,19 @@ export function MarketServiceControl({
     return formatCountdown(state.nextCreateAt - now);
   }, [state?.nextCreateAt, now]);
 
-  const closeCountdown = useMemo(() => {
-    if (!state?.nextCloseAt) return null;
-    return formatCountdown(state.nextCloseAt - now);
-  }, [state?.nextCloseAt, now]);
+  // ✅ Computed logic updates automatically based on which phase is active
+  const nextActionLabel = useMemo(() => {
+    if (!state?.running) return null;
+    
+    if (state.nextLockAt) {
+      return { label: "Lock Price", time: formatCountdown(state.nextLockAt - now) };
+    }
+    if (state.nextCloseAt) {
+      return { label: "Settle Round", time: formatCountdown(state.nextCloseAt - now) };
+    }
+    return null;
+  }, [state?.nextLockAt, state?.nextCloseAt, state?.running, now]);
 
-  // ✅ Updated to hit Render Live Status Endpoint
   const refresh = async () => {
     try {
       const res = await fetch(`${BACKEND_API_BASE}/status`, { cache: "no-store" });
@@ -84,15 +93,12 @@ export function MarketServiceControl({
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ Updated to post cleanly to Render Control Routes
   const call = async (path: "start" | "stop") => {
     setLoading(true);
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json"
       };
-      
-      // Inject token if admin typed it out in the input box
       if (token) {
         headers["x-admin-token"] = token;
       }
@@ -107,7 +113,7 @@ export function MarketServiceControl({
       setState(json);
     } catch (e) {
       setState((prev) => ({ 
-        ...(prev ?? { running: false, lastError: null, nextCreateAt: null }), 
+        ...(prev ?? { running: false, lastError: null, nextCreateAt: null, nextLockAt: null, nextCloseAt: null }), 
         lastError: e instanceof Error ? e.message : String(e) 
       }));
     } finally {
@@ -135,19 +141,19 @@ export function MarketServiceControl({
               {state?.running ? "Service Running" : "Service Stopped"}
             </span>
             {variant === "compact" && createCountdown ? (
-              <span className="text-xs text-gray-400">New market in {createCountdown}</span>
+              <span className="text-xs text-gray-400">Cycle loop: {createCountdown}</span>
             ) : null}
           </div>
 
           {variant === "hero" ? (
             <div className="mt-3">
-              <div className="text-[12px] text-gray-400">Next Market Launch</div>
+              <div className="text-[12px] text-gray-400">Next Master Block Cycle</div>
               <div className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
                 {createCountdown ?? "—"}
               </div>
-              {state?.running && closeCountdown ? (
+              {nextActionLabel ? (
                 <div className="mt-2 text-sm text-gray-400">
-                  <span className="text-gray-200">Close in {closeCountdown}</span>
+                  ⚠️ Next: <span className="text-purple-400 font-medium">{nextActionLabel.label}</span> in <span className="text-gray-200">{nextActionLabel.time}</span>
                 </div>
               ) : null}
             </div>
@@ -155,10 +161,24 @@ export function MarketServiceControl({
 
           {state?.lastCreatedMarket ? (
             <p className="text-xs text-gray-400 mt-2">
-              Last created: <span className="text-white">{state.lastCreatedMarket.coinId.toUpperCase()}</span> @{" "}
-              <span className="text-gray-300 select-all font-mono">{state.lastCreatedMarket.address}</span>
+              Last created: <span className="text-white font-semibold">{state.lastCreatedMarket.coinId.toUpperCase()}</span> @{" "}
+              <a 
+                href={`https://explorer.somnia.network/address/${state.lastCreatedMarket.address}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-gray-300 font-mono underline hover:text-purple-400 break-all select-all"
+              >
+                {state.lastCreatedMarket.address}
+              </a>
             </p>
           ) : null}
+          
+          {variant === "compact" && nextActionLabel ? (
+            <p className="text-xs text-gray-400 mt-1">
+              Next Stage: <span className="text-gray-200">{nextActionLabel.label} ({nextActionLabel.time})</span>
+            </p>
+          ) : null}
+
           {state?.lastError ? <p className="text-xs text-red-400 mt-2 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">⚠️ Error: {state.lastError}</p> : null}
         </div>
 
@@ -194,6 +214,34 @@ export function MarketServiceControl({
             >
               Stop
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Real-time Tracking Ledger Grid */}
+      <div className="mt-6 pt-5 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-[11px]">
+        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+          <div className="text-gray-500 font-medium">1. Market Creation (Tx)</div>
+          <div className="text-gray-300 font-mono mt-1 truncate">
+            {state?.lastCreatedMarket?.txHash ? (
+              <span className="text-green-400">{state.lastCreatedMarket.txHash}</span>
+            ) : "Waiting loop..."}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+          <div className="text-gray-500 font-medium">2. startRound() (Tx)</div>
+          <div className="text-gray-300 font-mono mt-1 truncate">
+            {state?.lastActions?.startTxHash ? (
+              <span className="text-purple-400">{state.lastActions.startTxHash}</span>
+            ) : "Pending start..."}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+          <div className="text-gray-500 font-medium">3. requestLockPrice() (Tx)</div>
+          <div className="text-gray-300 font-mono mt-1 truncate">
+            {state?.lastActions?.lockTxHash ? (
+              <span className="text-blue-400">{state.lastActions.lockTxHash}</span>
+            ) : state?.nextLockAt ? `Executing in ${formatCountdown(state.nextLockAt - now)}` : "Idle"}
           </div>
         </div>
       </div>

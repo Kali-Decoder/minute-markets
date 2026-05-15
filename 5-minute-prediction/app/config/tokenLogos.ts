@@ -31,4 +31,3 @@ export function getTokenLogoUrl(args: { symbol?: string | null; coinId?: string 
   const fromCoinId = tokenSymbolFromCoinId(args.coinId);
   return fromCoinId ? TOKEN_LOGOS[fromCoinId] : null;
 }
-

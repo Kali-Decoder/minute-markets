@@ -94,20 +94,25 @@ export function PredictionMarketCard({
   const startMs = typeof startTimestamp === "bigint" ? Number(startTimestamp) * 1000 : null;
   const closeMs = typeof closeTimestamp === "bigint" ? Number(closeTimestamp) * 1000 : null;
   
-  // === FIX STATE MACHINE FLAGS TO ALIGN WITH CONTRACT STATE ENUM ===
+  // === FIX STATE MACHINE INTERPRETATION TO MATCH YOUR STATE LIFE-CYCLE ===
   const isCancelled = roundStatus === 3;
   const isEnded = roundStatus === 2 || (typeof closePrice === "bigint" && closePrice !== 0n);
 
   const isLocked = useMemo(() => {
     if (isEnded || isCancelled) return false;
-    if (roundStatus === 1) return true; // Explicitly locked via contract
+    // If the contract explicitly says it's locked via admin trigger, lock it immediately
+    if (roundStatus === 1) return true;
+    
+    // Fallback chronological safety boundary checks
     if (typeof closeMs !== "number" || !Number.isFinite(closeMs)) return false;
     return now >= closeMs;
   }, [closeMs, isEnded, isCancelled, roundStatus, now]);
 
   const isLive = useMemo(() => {
     if (isEnded || isCancelled || isLocked) return false;
-    if (roundStatus === 0) return true; // Explicitly live via contract
+    // Explicit contract state status 0 stands for RoundStatus.LIVE
+    if (roundStatus === 0) return true;
+    
     if (typeof roundEpoch !== "bigint" || roundEpoch === 0n) return false;
     return true;
   }, [isEnded, isCancelled, isLocked, roundStatus, roundEpoch]);

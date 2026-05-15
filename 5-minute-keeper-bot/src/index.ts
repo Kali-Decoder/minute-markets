@@ -1,16 +1,20 @@
 import express from "express";
+import cors from "cors"; // ✅ Import CORS
 import * as dotenv from "dotenv";
 import marketRouter from "./routes/marketRoutes";
-import { marketService } from "./service/marketService";
 
 dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(express.json());
+// ✅ Allow your frontend app domain to query this API securely
+app.use(cors({
+  origin: ["http://localhost:3000", "https://minute-markets.netlify.app/"],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "x-admin-token"]
+}));
 
-// Apply health status entry and operational API prefixes
+app.use(express.json());
 app.use("/api/market-service", marketRouter);
 
 app.get("/health", (req, res) => {

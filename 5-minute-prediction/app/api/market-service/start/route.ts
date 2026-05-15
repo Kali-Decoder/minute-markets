@@ -15,8 +15,7 @@ export async function POST(req: Request) {
   const service = getMarketServiceSingleton();
   service.start({
     createEveryMs: 5 * 60_000,
-    lockAfterMs: 5 * 60_000,
-    closeAfterMs: 10 * 60_000,
+    closeAfterMs: 5 * 60_000,
   });
   return NextResponse.json(service.getState());
 }

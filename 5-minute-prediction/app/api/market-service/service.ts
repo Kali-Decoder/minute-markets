@@ -10,7 +10,6 @@ type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
-  nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: {
     address: Address;
@@ -20,17 +19,14 @@ type ServiceState = {
   };
   lastActions?: {
     startedAt: number | null;
-    lockRequestedAt: number | null;
     closeRequestedAt: number | null;
     startTxHash: Hash | null;
-    lockTxHash: Hash | null;
     closeTxHash: Hash | null;
   };
 };
 
 type StartOptions = {
   createEveryMs: number;
-  lockAfterMs: number;
   closeAfterMs: number;
 };
 
@@ -55,19 +51,17 @@ export class MarketService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private timeouts: ReturnType<typeof setTimeout>[] = [];
   private busy = false;
+  private livePollId: ReturnType<typeof setInterval> | null = null;
 
   private state: ServiceState = {
     running: false,
     lastError: null,
     nextCreateAt: null,
-    nextLockAt: null,
     nextCloseAt: null,
     lastActions: {
       startedAt: null,
-      lockRequestedAt: null,
       closeRequestedAt: null,
       startTxHash: null,
-      lockTxHash: null,
       closeTxHash: null,
     },
   };
@@ -79,19 +73,18 @@ export class MarketService {
   stop() {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
+    if (this.livePollId) clearInterval(this.livePollId);
+    this.livePollId = null;
     for (const t of this.timeouts) clearTimeout(t);
     this.timeouts = [];
     this.busy = false;
     this.state.running = false;
     this.state.nextCreateAt = null;
-    this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
     this.state.lastActions = {
       startedAt: null,
-      lockRequestedAt: null,
       closeRequestedAt: null,
       startTxHash: null,
-      lockTxHash: null,
       closeTxHash: null,
     };
   }
@@ -102,7 +95,6 @@ export class MarketService {
     this.state.running = true;
     this.state.lastError = null;
     this.state.nextCreateAt = Date.now() + options.createEveryMs;
-    this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
 
     const tick = async () => {
@@ -123,40 +115,25 @@ export class MarketService {
         };
         this.state.lastActions = {
           startedAt: null,
-          lockRequestedAt: null,
           closeRequestedAt: null,
           startTxHash: null,
-          lockTxHash: null,
           closeTxHash: null,
         };
 
+        // startRound() now triggers an immediate lock-price fetch internally (per updated contract flow).
         const startHash = await this.startRound(marketAddress);
         this.state.lastActions.startedAt = Date.now();
         this.state.lastActions.startTxHash = startHash;
 
-        this.state.nextLockAt = now + options.lockAfterMs;
-        this.state.nextCloseAt = now + options.closeAfterMs;
-
-        this.timeouts.push(
-          setTimeout(() => {
-            this.requestLockPrice(marketAddress).catch((e) => {
-              this.state.lastError = e instanceof Error ? e.message : String(e);
-            });
-          }, options.lockAfterMs)
-        );
-
-        this.timeouts.push(
-          setTimeout(() => {
-            this.requestClosePrice(marketAddress).catch((e) => {
-              this.state.lastError = e instanceof Error ? e.message : String(e);
-            });
-          }, options.closeAfterMs)
-        );
+        // startRound() triggers a lock-price request; we must wait until the lock callback makes the round LIVE.
+        // Only then do we wait `closeAfterMs` (user betting window) before requesting close.
+        this.state.nextCloseAt = null;
+        this.waitUntilLiveThenScheduleClose(marketAddress, options.closeAfterMs);
       } catch (e) {
         this.state.lastError = e instanceof Error ? e.message : String(e);
       } finally {
         this.state.nextCreateAt = Date.now() + options.createEveryMs;
-        // nextLockAt/nextCloseAt stay from last created market
+        // nextCloseAt stays from last created market
         this.busy = false;
       }
     };
@@ -219,47 +196,82 @@ export class MarketService {
 
   private async startRound(market: Address): Promise<Hash> {
     const { publicClient, walletClient } = this.clients();
-    const txHash = await walletClient.writeContract({
-      address: market,
-      abi: PredictionMarketABI,
-      functionName: "startRound",
-    });
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
-    return txHash;
-  }
-
-  private async requestLockPrice(market: Address): Promise<Hash> {
-    const { publicClient, walletClient } = this.clients();
-    const epoch = await publicClient.readContract({
-      address: market,
-      abi: PredictionMarketABI,
-      functionName: "currentEpoch",
-    });
     const deposit = await publicClient.readContract({
       address: market,
       abi: PredictionMarketABI,
       functionName: "REQUEST_DEPOSIT",
     });
-
     const txHash = await walletClient.writeContract({
       address: market,
       abi: PredictionMarketABI,
-      functionName: "requestLockPrice",
-      args: [epoch],
+      functionName: "startRound",
       value: deposit,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
-    this.state.lastActions = this.state.lastActions ?? {
-      startedAt: null,
-      lockRequestedAt: null,
-      closeRequestedAt: null,
-      startTxHash: null,
-      lockTxHash: null,
-      closeTxHash: null,
-    };
-    this.state.lastActions.lockRequestedAt = Date.now();
-    this.state.lastActions.lockTxHash = txHash;
     return txHash;
+  }
+
+  private waitUntilLiveThenScheduleClose(market: Address, closeAfterMs: number) {
+    if (this.livePollId) {
+      clearInterval(this.livePollId);
+      this.livePollId = null;
+    }
+
+    const startedAt = Date.now();
+    const maxWaitMs = 2 * 60_000; // safety: stop polling after 2 minutes
+
+    const check = async () => {
+      if (!this.state.running) return;
+      try {
+        const { publicClient } = this.clients();
+        const round = await publicClient.readContract({
+          address: market,
+          abi: PredictionMarketABI,
+          functionName: "getCurrentRound",
+        });
+        // ABI tuple: [..., lockPrice, closePrice, ..., status]
+        const lockPrice = (round as any).lockPrice as bigint | undefined;
+        const closePrice = (round as any).closePrice as bigint | undefined;
+        const status = (round as any).status as number | undefined;
+
+        // Some deployments gate `requestClosePrice` on LIVE; others may use LOCKED as the "ready" state.
+        // We treat "lock price is present" as the canonical signal that the round can proceed.
+        const hasLockPrice = typeof lockPrice === "bigint" && lockPrice !== 0n;
+        const isLive = (typeof status === "number" && status === 0) || hasLockPrice;
+        const isEnded = typeof closePrice === "bigint" && closePrice !== 0n;
+        if (isEnded) {
+          if (this.livePollId) clearInterval(this.livePollId);
+          this.livePollId = null;
+          return;
+        }
+
+        if (!isLive) {
+          if (Date.now() - startedAt > maxWaitMs) {
+            if (this.livePollId) clearInterval(this.livePollId);
+            this.livePollId = null;
+            this.state.lastError = "Lock callback not received (round not LIVE).";
+          }
+          return;
+        }
+
+        if (this.livePollId) clearInterval(this.livePollId);
+        this.livePollId = null;
+
+        this.state.nextCloseAt = Date.now() + closeAfterMs;
+        this.timeouts.push(
+          setTimeout(() => {
+            this.requestClosePrice(market).catch((e) => {
+              this.state.lastError = e instanceof Error ? e.message : String(e);
+            });
+          }, closeAfterMs)
+        );
+      } catch (e) {
+        this.state.lastError = e instanceof Error ? e.message : String(e);
+      }
+    };
+
+    this.livePollId = setInterval(() => void check(), 3_000);
+    void check();
   }
 
   private async requestClosePrice(market: Address): Promise<Hash> {
@@ -285,10 +297,8 @@ export class MarketService {
     await publicClient.waitForTransactionReceipt({ hash: txHash });
     this.state.lastActions = this.state.lastActions ?? {
       startedAt: null,
-      lockRequestedAt: null,
       closeRequestedAt: null,
       startTxHash: null,
-      lockTxHash: null,
       closeTxHash: null,
     };
     this.state.lastActions.closeRequestedAt = Date.now();

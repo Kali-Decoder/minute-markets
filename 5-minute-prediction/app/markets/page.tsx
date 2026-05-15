@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
@@ -62,6 +62,19 @@ export default function MarketsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [form, setForm] = useState({ marketName: "", marketSymbol: "", coinId: "" });
   const [tab, setTab] = useState<MarketTab>("bitcoin");
+  const [showLiveOnly, setShowLiveOnly] = useState(false);
+  const [marketMeta, setMarketMeta] = useState<
+    Record<
+      string,
+      {
+        tab: MarketTab | null;
+        epoch: bigint;
+        lockPrice: bigint;
+        closePrice: bigint;
+        closeTimestamp: bigint;
+      }
+    >
+  >({});
 
   const markets = useMemo(() => {
     const list = (allMarkets as Address[] | undefined) ?? [];
@@ -113,6 +126,31 @@ export default function MarketsPage() {
     return () => clearInterval(tick);
   }, []);
 
+  const tabCounts = useMemo(() => {
+    const counts: Record<MarketTab, number> = { bitcoin: 0, ethereum: 0, solana: 0, somnia: 0 };
+    for (const v of Object.values(marketMeta)) {
+      if (!v.tab) continue;
+      counts[v.tab] += 1;
+    }
+    return counts;
+  }, [marketMeta]);
+
+  const liveCounts = useMemo(() => {
+    const counts: Record<MarketTab, number> = { bitcoin: 0, ethereum: 0, solana: 0, somnia: 0 };
+    for (const v of Object.values(marketMeta)) {
+      if (!v.tab) continue;
+      const closeMs = Number(v.closeTimestamp) * 1000;
+      const isLive =
+        v.epoch !== 0n &&
+        v.lockPrice !== 0n &&
+        v.closePrice === 0n &&
+        Number.isFinite(closeMs) &&
+        serviceNow < closeMs;
+      if (isLive) counts[v.tab] += 1;
+    }
+    return counts;
+  }, [marketMeta, serviceNow]);
+
   const { data: serviceState } = useQuery<ServiceState>({
     queryKey: ["market-service-status-mini"],
     queryFn: async () => {
@@ -124,7 +162,6 @@ export default function MarketsPage() {
   });
 
   const nextLaunchIn = serviceState?.nextCreateAt ? formatCountdown(serviceState.nextCreateAt - serviceNow) : null;
-  const lockIn = serviceState?.nextLockAt ? formatCountdown(serviceState.nextLockAt - serviceNow) : null;
   const closeIn = serviceState?.nextCloseAt ? formatCountdown(serviceState.nextCloseAt - serviceNow) : null;
 
   const canCreate = chainId === somniaTestnet.id && !!factoryAddress;
@@ -223,7 +260,7 @@ export default function MarketsPage() {
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <LaunchStep label="Create" value={serviceState?.running ? nextLaunchIn ?? "—" : "00:00"} />
-          <LaunchStep label="Lock" value={serviceState?.running ? lockIn ?? "—" : "00:00"} />
+          <LaunchStep label="Lock" value={serviceState?.running ? "Auto" : "—"} />
           <LaunchStep label="Close" value={serviceState?.running ? closeIn ?? "—" : "00:00"} />
         </div>
       </div>
@@ -270,6 +307,15 @@ export default function MarketsPage() {
                   >
                     {t.logo ? <Image src={t.logo} alt={`${t.label} logo`} width={18} height={18} className="rounded-full" /> : null}
                     <span className="hidden sm:inline">{t.label}</span>
+                    <span
+                      className={[
+                        "ml-1 min-w-[1.5rem] h-5 px-2 inline-flex items-center justify-center rounded-full text-[11px] font-semibold border",
+                        tab === t.key ? "bg-monad-purple/20 text-white border-monad-purple/30" : "bg-white/5 text-gray-300 border-white/10",
+                      ].join(" ")}
+                      aria-label={`${tabCounts[t.key]} markets`}
+                    >
+                      {tabCounts[t.key]}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -295,6 +341,24 @@ export default function MarketsPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLiveOnly((v) => !v)}
+                className={[
+                  "h-10 px-3 rounded-xl border text-sm font-semibold transition-colors inline-flex items-center gap-2",
+                  showLiveOnly
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                    : "border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40",
+                ].join(" ")}
+                aria-label="Toggle live filter"
+                title="Show live markets only"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Live</span>
+                <span className="min-w-[1.5rem] h-5 px-2 inline-flex items-center justify-center rounded-full text-[11px] font-semibold border border-white/10 bg-black/20 text-gray-200 tabular-nums">
+                  {liveCounts[tab]}
+                </span>
+              </button>
               <button
                 className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
                 aria-label="Help"
@@ -330,7 +394,21 @@ export default function MarketsPage() {
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {markets.map((m) => (
-                <MarketCardFromFactory key={m} market={m} tab={tab} />
+                <MarketCardFromFactory
+                  key={m}
+                  market={m}
+                  tab={tab}
+                  showLiveOnly={showLiveOnly}
+                  nowMs={serviceNow}
+                  onMeta={(address, meta) =>
+                    setMarketMeta((prev) => {
+                      const key = address.toLowerCase();
+                      const next = { ...prev };
+                      next[key] = meta;
+                      return next;
+                    })
+                  }
+                />
               ))}
             </div>
 
@@ -419,7 +497,22 @@ export default function MarketsPage() {
   );
 }
 
-function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTab }) {
+function MarketCardFromFactory({
+  market,
+  tab,
+  showLiveOnly,
+  nowMs,
+  onMeta,
+}: {
+  market: Address;
+  tab: MarketTab;
+  showLiveOnly: boolean;
+  nowMs: number;
+  onMeta?: (
+    address: Address,
+    meta: { tab: MarketTab | null; epoch: bigint; lockPrice: bigint; closePrice: bigint; closeTimestamp: bigint }
+  ) => void;
+}) {
   const { data } = usePredictionMarketFactoryGetMarketInfo(market, true);
   const { data: roundData } = useMarketCurrentRound(market, true);
   const info = data as
@@ -438,7 +531,6 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
     | {
         epoch: bigint;
         startTimestamp: bigint;
-        lockTimestamp: bigint;
         closeTimestamp: bigint;
         lockPrice: bigint;
         closePrice: bigint;
@@ -451,6 +543,37 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
         status: number;
       }
     | undefined;
+
+  const derivedTab = useMemo(() => {
+    const coinId = typeof info?.coinId === "string" ? info.coinId : "";
+    if (!coinId) return null;
+    if (matchesTab(coinId, "bitcoin")) return "bitcoin";
+    if (matchesTab(coinId, "ethereum")) return "ethereum";
+    if (matchesTab(coinId, "solana")) return "solana";
+    if (matchesTab(coinId, "somnia")) return "somnia";
+    return null;
+  }, [info?.coinId]);
+
+  const isLive = useMemo(() => {
+    if (!round) return false;
+    if (round.epoch === 0n) return false;
+    if (round.closePrice !== 0n) return false;
+    if (round.lockPrice === 0n) return false;
+    const closeMs = Number(round.closeTimestamp) * 1000;
+    if (!Number.isFinite(closeMs)) return false;
+    return nowMs < closeMs;
+  }, [nowMs, round]);
+
+  useEffect(() => {
+    if (!onMeta) return;
+    onMeta(market, {
+      tab: derivedTab,
+      epoch: round?.epoch ?? 0n,
+      lockPrice: round?.lockPrice ?? 0n,
+      closePrice: round?.closePrice ?? 0n,
+      closeTimestamp: round?.closeTimestamp ?? 0n,
+    });
+  }, [derivedTab, market, onMeta, round?.closePrice, round?.closeTimestamp, round?.epoch, round?.lockPrice]);
 
   if (!info) {
     const addr = asAddress(market);
@@ -469,11 +592,13 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
       closePrice={round?.closePrice}
       upWon={round?.upWon}
       startTimestamp={round?.startTimestamp}
+      closeTimestamp={round?.closeTimestamp}
     />
   );
   }
 
   if (!matchesTab(info.coinId, tab)) return null;
+  if (showLiveOnly && !isLive) return null;
 
   return (
     <PredictionMarketCard
@@ -490,6 +615,7 @@ function MarketCardFromFactory({ market, tab }: { market: Address; tab: MarketTa
       closePrice={round?.closePrice}
       upWon={round?.upWon}
       startTimestamp={round?.startTimestamp}
+      closeTimestamp={round?.closeTimestamp}
     />
   );
 }

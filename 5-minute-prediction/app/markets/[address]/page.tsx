@@ -16,7 +16,6 @@ import {
   useMarketMeta,
   useMarketOwner,
   useMarketRequestClosePrice,
-  useMarketRequestLockPrice,
   useMarketStartRound,
   useMarketUserBet,
 } from "@/app/hooks/usePredictionMarketContract";
@@ -74,7 +73,6 @@ export default function MarketDetailPage() {
     | {
         epoch: bigint;
         startTimestamp: bigint;
-        lockTimestamp: bigint;
         closeTimestamp: bigint;
         lockPrice: bigint;
         closePrice: bigint;
@@ -97,7 +95,6 @@ export default function MarketDetailPage() {
   const betDown = useMarketBetDown(market);
   const claim = useMarketClaim(market);
   const startRoundTx = useMarketStartRound(market);
-  const lockTx = useMarketRequestLockPrice(market);
   const closeTx = useMarketRequestClosePrice(market);
 
   const [amountEth, setAmountEth] = useState<string>("0.01");
@@ -116,9 +113,9 @@ export default function MarketDetailPage() {
   const betState = useMemo(() => {
     if (!currentRound) return { canBet: false, reason: "Round not loaded yet." };
     if (currentRound.epoch === 0n) return { canBet: false, reason: "Round not started yet (owner must call startRound)." };
-    if (currentRound.status !== 0) return { canBet: false, reason: `Round not live (${ROUND_STATUS_LABEL[currentRound.status] ?? currentRound.status}).` };
+    if (currentRound.closePrice !== 0n) return { canBet: false, reason: "Round ended." };
     const now = BigInt(Math.floor(Date.now() / 1000));
-    if (currentRound.lockTimestamp !== 0n && now >= currentRound.lockTimestamp) {
+    if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) {
       return { canBet: false, reason: "Round locked." };
     }
     return { canBet: true, reason: null as string | null };
@@ -215,17 +212,6 @@ export default function MarketDetailPage() {
     }
   };
 
-  const doRequestLock = async () => {
-    setActionError(null);
-    try {
-      if (!currentEpoch) throw new Error("Current epoch not available.");
-      await lockTx.requestLockPrice(currentEpoch);
-      await doRefetchAll();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to request lock price.");
-    }
-  };
-
   const doRequestClose = async () => {
     setActionError(null);
     try {
@@ -244,7 +230,7 @@ export default function MarketDetailPage() {
       if (currentRound.epoch === 0n) throw new Error("Round not started yet (owner must call startRound).");
       if (currentRound.status !== 0) throw new Error(`Round not live (${ROUND_STATUS_LABEL[currentRound.status] ?? currentRound.status}).`);
       const now = BigInt(Math.floor(Date.now() / 1000));
-      if (currentRound.lockTimestamp !== 0n && now >= currentRound.lockTimestamp) throw new Error("Round locked.");
+      if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) throw new Error("Round locked.");
       const value = parseEther(amountEth || "0");
       if (value <= 0n) throw new Error("Bet amount must be greater than 0.");
       if (direction === "UP") await betUp.betUp({ epoch: currentEpoch, value });
@@ -330,7 +316,7 @@ export default function MarketDetailPage() {
                 <Stat label="Down Pool" value={`${formatEther(currentRound.downPool)} ETH`} />
                 <Stat label="Odds" value={`UP ${odds.up} / DOWN ${odds.down}`} />
                 <Stat label="Start Time" value={fmtTs(currentRound.startTimestamp)} />
-                <Stat label="Lock Time" value={fmtTs(currentRound.lockTimestamp)} />
+                <Stat label="Lock Time" value={fmtTs(currentRound.startTimestamp)} />
                 <Stat label="Close Time" value={fmtTs(currentRound.closeTimestamp)} />
                 <Stat label="Lock Price" value={fmtPrice(currentRound.lockPrice)} />
                 <Stat label="Close Price" value={fmtPrice(currentRound.closePrice)} />
@@ -357,26 +343,13 @@ export default function MarketDetailPage() {
               ) : null}
 
               {isOwner && currentRound.epoch !== 0n ? (
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={doRequestLock}
-                    disabled={
-                      lockTx.isPending ||
-                      lockTx.isConfirming ||
-                      currentRound.status !== 0 ||
-                      currentRound.lockPrice !== 0n ||
-                      BigInt(Math.floor(Date.now() / 1000)) < currentRound.lockTimestamp
-                    }
-                    className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-yellow-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {lockTx.isPending || lockTx.isConfirming ? "Requesting lock…" : "Request Lock Price (Admin)"}
-                  </button>
+                <div className="mt-4 grid grid-cols-1 gap-3">
                   <button
                     onClick={doRequestClose}
                     disabled={
                       closeTx.isPending ||
                       closeTx.isConfirming ||
-                      currentRound.status !== 1 ||
+                      currentRound.lockPrice === 0n ||
                       currentRound.closePrice !== 0n ||
                       BigInt(Math.floor(Date.now() / 1000)) < currentRound.closeTimestamp
                     }
@@ -384,8 +357,8 @@ export default function MarketDetailPage() {
                   >
                     {closeTx.isPending || closeTx.isConfirming ? "Requesting close…" : "Request Close Price (Admin)"}
                   </button>
-                  <p className="sm:col-span-2 text-[11px] text-gray-500">
-                    Lock enabled after lock time and only while round is LIVE. Close enabled after close time and only while round is LOCKED.
+                  <p className="text-[11px] text-gray-500">
+                    Lock price is fetched automatically when <span className="text-gray-300">startRound()</span> is called. Close enabled after lock is received and close time.
                   </p>
                 </div>
               ) : null}

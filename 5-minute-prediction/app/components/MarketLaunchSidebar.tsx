@@ -9,9 +9,12 @@ export type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
-  nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: { address: Address; coinId: string; createdAt: number; txHash: Hash };
+  lastActions?: {
+    startTxHash?: Hash | null;
+    closeTxHash?: Hash | null;
+  };
 };
 
 function formatCountdown(ms: number): string {
@@ -68,7 +71,6 @@ export function MarketLaunchSidebar() {
   }, []);
 
   const nextLaunch = state?.nextCreateAt ? formatCountdown(state.nextCreateAt - now) : null;
-  const lockIn = state?.nextLockAt ? formatCountdown(state.nextLockAt - now) : null;
   const closeIn = state?.nextCloseAt ? formatCountdown(state.nextCloseAt - now) : null;
 
   const createdAt = state?.lastCreatedMarket?.createdAt ?? null;
@@ -76,10 +78,9 @@ export function MarketLaunchSidebar() {
     ? {
         created: true,
         started: !!state?.lastActions?.startTxHash,
-        locked: !!state?.lastActions?.lockTxHash,
         closed: !!state?.lastActions?.closeTxHash,
       }
-    : { created: false, started: false, locked: false, closed: false };
+    : { created: false, started: false, closed: false };
 
   return (
     <aside className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
@@ -124,17 +125,12 @@ export function MarketLaunchSidebar() {
           <StepRow
             done={progress.started}
             title="Round started"
-            subtitle={progress.started ? "Done" : "After create"}
-          />
-          <StepRow
-            done={progress.locked}
-            title="Lock price"
-            subtitle={progress.locked ? "Done" : lockIn ? `In ${lockIn}` : "After +5m"}
+            subtitle={progress.started ? "Done (lock fetch starts)" : "After create"}
           />
           <StepRow
             done={progress.closed}
             title="Close price"
-            subtitle={progress.closed ? "Done" : closeIn ? `In ${closeIn}` : "After +10m"}
+            subtitle={progress.closed ? "Done" : closeIn ? `In ${closeIn}` : "After +5m"}
           />
         </div>
       </div>

@@ -32,6 +32,7 @@ export type PredictionMarketCardProps = {
   closePrice?: bigint;
   upWon?: boolean;
   startTimestamp?: bigint;
+  closeTimestamp?: bigint;
 };
 
 export function PredictionMarketCard({
@@ -48,6 +49,7 @@ export function PredictionMarketCard({
   closePrice,
   upWon,
   startTimestamp,
+  closeTimestamp,
 }: PredictionMarketCardProps) {
   const coinSymbol = useMemo(() => {
     const normalizedId = (coinId || "").trim().toLowerCase();
@@ -87,11 +89,28 @@ export function PredictionMarketCard({
   const explorerBase = (somniaTestnet.blockExplorers?.default.url || "").replace(/\/$/, "");
   const explorerUrl = explorerBase ? `${explorerBase}/address/${address}` : "";
   const statusLabel = typeof roundStatus === "number" ? ROUND_STATUS_LABEL[roundStatus] ?? `STATUS ${roundStatus}` : "—";
-  const isLive = roundStatus === 0;
-  const isEnded = roundStatus === 2;
   const [now, setNow] = useState(() => Date.now());
 
   const startMs = typeof startTimestamp === "bigint" ? Number(startTimestamp) * 1000 : null;
+  const closeMs = typeof closeTimestamp === "bigint" ? Number(closeTimestamp) * 1000 : null;
+  const hasClosePrice = typeof closePrice === "bigint" && closePrice !== 0n;
+  const isEnded = hasClosePrice || roundStatus === 2;
+
+  const isLocked = useMemo(() => {
+    if (isEnded) return false;
+    if (typeof closeMs !== "number" || !Number.isFinite(closeMs)) return false;
+    return now >= closeMs;
+  }, [closeMs, isEnded, now]);
+
+  const isLive = useMemo(() => {
+    if (isEnded) return false;
+    if (typeof roundEpoch !== "bigint" || roundEpoch === 0n) return false;
+    if (isLocked) return false;
+    // Live once round is started and we haven't reached close time yet.
+    return true;
+  }, [isEnded, isLocked, roundEpoch]);
+
+  const displayStatus = isEnded ? "ENDED" : isLocked ? "LOCKED" : isLive ? "LIVE" : statusLabel;
   const isComingSoon = isLive && typeof startMs === "number" && Number.isFinite(startMs) && startMs > now;
 
   useEffect(() => {
@@ -317,14 +336,19 @@ export function PredictionMarketCard({
       <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <span
-              className={[
-                "inline-flex items-center gap-2 text-[12px] font-semibold tracking-wide",
-                isLive ? "text-monad-purple" : "text-gray-400",
-              ].join(" ")}
-            >
-              <span className={["h-2 w-2 rounded-full", isLive ? "bg-monad-purple animate-pulse" : "bg-gray-500"].join(" ")} />
-              {isLive ? "LIVE" : statusLabel}
+              <span
+                className={[
+                  "inline-flex items-center gap-2 text-[12px] font-semibold tracking-wide",
+                  isLive ? "text-monad-purple" : isLocked ? "text-yellow-200" : "text-gray-400",
+                ].join(" ")}
+              >
+              <span
+                className={[
+                  "h-2 w-2 rounded-full",
+                  isLive ? "bg-monad-purple animate-pulse" : isLocked ? "bg-yellow-300" : "bg-gray-500",
+                ].join(" ")}
+              />
+              {displayStatus}
             </span>
           </div>
           <div className="flex items-center gap-2">

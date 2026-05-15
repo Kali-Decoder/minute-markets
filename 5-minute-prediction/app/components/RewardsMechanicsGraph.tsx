@@ -130,7 +130,7 @@ function AgentCard({ side }: { side: "left" | "right" }) {
         </div>
         <div className="mt-3 text-[11px] text-gray-400 tracking-widest uppercase">Function</div>
         <div className="mt-1 font-mono text-[12px] text-gray-200">
-          {side === "left" ? "requestLockPrice()" : "requestClosePrice()"}
+          {side === "left" ? "startRound()" : "requestClosePrice()"}
         </div>
         <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
           <div className="text-[11px] text-gray-500 tracking-widest uppercase">{">> Output"}</div>
@@ -281,4 +281,3 @@ export function RewardsMechanicsGraph() {
     </section>
   );
 }
-

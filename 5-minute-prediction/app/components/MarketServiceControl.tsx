@@ -9,15 +9,12 @@ type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
-  nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: { address: Address; coinId: string; createdAt: number; txHash: Hash };
   lastActions?: {
     startedAt?: number | null;
-    lockRequestedAt?: number | null;
     closeRequestedAt?: number | null;
     startTxHash?: Hash | null;
-    lockTxHash?: Hash | null;
     closeTxHash?: Hash | null;
   };
 };
@@ -59,11 +56,6 @@ export function MarketServiceControl({
     if (!state?.nextCreateAt) return null;
     return formatCountdown(state.nextCreateAt - now);
   }, [state?.nextCreateAt, now]);
-
-  const lockCountdown = useMemo(() => {
-    if (!state?.nextLockAt) return null;
-    return formatCountdown(state.nextLockAt - now);
-  }, [state?.nextLockAt, now]);
 
   const closeCountdown = useMemo(() => {
     if (!state?.nextCloseAt) return null;
@@ -140,10 +132,8 @@ export function MarketServiceControl({
               <div className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
                 {createCountdown ?? "—"}
               </div>
-              {state?.running && (lockCountdown || closeCountdown) ? (
+              {state?.running && closeCountdown ? (
                 <div className="mt-2 text-sm text-gray-400">
-                  {lockCountdown ? <span className="text-gray-200">Lock in {lockCountdown}</span> : null}
-                  {lockCountdown && closeCountdown ? <span className="text-gray-500"> • </span> : null}
                   {closeCountdown ? <span className="text-gray-200">Close in {closeCountdown}</span> : null}
                 </div>
               ) : null}
@@ -156,12 +146,9 @@ export function MarketServiceControl({
               <span className="text-gray-300">{state.lastCreatedMarket.address}</span>
             </p>
           ) : null}
-          {state?.running && (lockCountdown || closeCountdown) ? (
+          {state?.running && closeCountdown ? (
             <p className="text-xs text-gray-400 mt-2">
-              Next actions:{" "}
-              {lockCountdown ? <span className="text-gray-300">lock in {lockCountdown}</span> : null}
-              {lockCountdown && closeCountdown ? <span className="text-gray-500"> • </span> : null}
-              {closeCountdown ? <span className="text-gray-300">close in {closeCountdown}</span> : null}
+              Next action: {closeCountdown ? <span className="text-gray-300">close in {closeCountdown}</span> : null}
             </p>
           ) : null}
           {state?.lastError ? <p className="text-xs text-red-300 mt-2">Error: {state.lastError}</p> : null}
@@ -211,18 +198,12 @@ export function MarketServiceControl({
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
           <div className="text-gray-500">startRound()</div>
-          <div className="text-gray-300 mt-1">Admin • immediately</div>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="text-gray-500">requestLockPrice()</div>
-          <div className="text-gray-300 mt-1">
-            Admin • +5m{lockCountdown ? <span className="text-gray-500"> (in {lockCountdown})</span> : null}
-          </div>
+          <div className="text-gray-300 mt-1">Admin • immediately (auto-lock fetch)</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
           <div className="text-gray-500">requestClosePrice()</div>
           <div className="text-gray-300 mt-1">
-            Admin • +10m{closeCountdown ? <span className="text-gray-500"> (in {closeCountdown})</span> : null}
+            Admin • +5m{closeCountdown ? <span className="text-gray-500"> (in {closeCountdown})</span> : null}
           </div>
         </div>
       </div>

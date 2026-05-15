@@ -10,6 +10,7 @@ type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
+  nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: {
     address: Address;
@@ -19,15 +20,18 @@ type ServiceState = {
   };
   lastActions?: {
     startedAt: number | null;
+    lockRequestedAt: number | null;
     closeRequestedAt: number | null;
     startTxHash: Hash | null;
+    lockTxHash: Hash | null;
     closeTxHash: Hash | null;
   };
 };
 
 type StartOptions = {
-  createEveryMs: number;
-  closeAfterMs: number;
+  createEveryMs: number; // Interval between completely new market setups
+  lockAfterMs: number;   // 5 minutes betting window (Time between startRound and requestLockPrice)
+  closeAfterMs: number;  // 5 minutes locking window (Time between requestLockPrice and requestClosePrice)
 };
 
 function getEnv(name: string): string {
@@ -51,17 +55,19 @@ export class MarketService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private timeouts: ReturnType<typeof setTimeout>[] = [];
   private busy = false;
-  private livePollId: ReturnType<typeof setInterval> | null = null;
 
   private state: ServiceState = {
     running: false,
     lastError: null,
     nextCreateAt: null,
+    nextLockAt: null,
     nextCloseAt: null,
     lastActions: {
       startedAt: null,
+      lockRequestedAt: null,
       closeRequestedAt: null,
       startTxHash: null,
+      lockTxHash: null,
       closeTxHash: null,
     },
   };
@@ -73,18 +79,19 @@ export class MarketService {
   stop() {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
-    if (this.livePollId) clearInterval(this.livePollId);
-    this.livePollId = null;
     for (const t of this.timeouts) clearTimeout(t);
     this.timeouts = [];
     this.busy = false;
     this.state.running = false;
     this.state.nextCreateAt = null;
+    this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
     this.state.lastActions = {
       startedAt: null,
+      lockRequestedAt: null,
       closeRequestedAt: null,
       startTxHash: null,
+      lockTxHash: null,
       closeTxHash: null,
     };
   }
@@ -95,6 +102,7 @@ export class MarketService {
     this.state.running = true;
     this.state.lastError = null;
     this.state.nextCreateAt = Date.now() + options.createEveryMs;
+    this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
 
     const tick = async () => {
@@ -105,6 +113,7 @@ export class MarketService {
 
       this.busy = true;
       try {
+        // 1. Create a fresh Prediction Market Contract Deployment
         const { marketAddress, coinId, txHash } = await this.createMarket();
         const now = Date.now();
         this.state.lastCreatedMarket = {
@@ -115,25 +124,57 @@ export class MarketService {
         };
         this.state.lastActions = {
           startedAt: null,
+          lockRequestedAt: null,
           closeRequestedAt: null,
           startTxHash: null,
+          lockTxHash: null,
           closeTxHash: null,
         };
 
-        // startRound() now triggers an immediate lock-price fetch internally (per updated contract flow).
+        // 2. Call startRound() immediately to push status to LIVE so users can bet
         const startHash = await this.startRound(marketAddress);
         this.state.lastActions.startedAt = Date.now();
         this.state.lastActions.startTxHash = startHash;
 
-        // startRound() triggers a lock-price request; we must wait until the lock callback makes the round LIVE.
-        // Only then do we wait `closeAfterMs` (user betting window) before requesting close.
-        this.state.nextCloseAt = null;
-        this.waitUntilLiveThenScheduleClose(marketAddress, options.closeAfterMs);
+        // 3. Schedule requestLockPrice() after 5 minutes (lockAfterMs)
+        this.state.nextLockAt = Date.now() + options.lockAfterMs;
+        this.timeouts.push(
+          setTimeout(async () => {
+            try {
+              if (!this.state.running) return;
+              
+              const lockHash = await this.requestLockPrice(marketAddress);
+              this.state.lastActions!.lockRequestedAt = Date.now();
+              this.state.lastActions!.lockTxHash = lockHash;
+              this.state.nextLockAt = null;
+
+              // 4. Schedule requestClosePrice() 5 minutes after locking (closeAfterMs)
+              this.state.nextCloseAt = Date.now() + options.closeAfterMs;
+              this.timeouts.push(
+                setTimeout(async () => {
+                  try {
+                    if (!this.state.running) return;
+
+                    const closeHash = await this.requestClosePrice(marketAddress);
+                    this.state.lastActions!.closeRequestedAt = Date.now();
+                    this.state.lastActions!.closeTxHash = closeHash;
+                    this.state.nextCloseAt = null;
+                  } catch (closeErr) {
+                    this.state.lastError = closeErr instanceof Error ? closeErr.message : String(closeErr);
+                  }
+                }, options.closeAfterMs)
+              );
+
+            } catch (lockErr) {
+              this.state.lastError = lockErr instanceof Error ? lockErr.message : String(lockErr);
+            }
+          }, options.lockAfterMs)
+        );
+
       } catch (e) {
         this.state.lastError = e instanceof Error ? e.message : String(e);
       } finally {
         this.state.nextCreateAt = Date.now() + options.createEveryMs;
-        // nextCloseAt stays from last created market
         this.busy = false;
       }
     };
@@ -196,97 +237,60 @@ export class MarketService {
 
   private async startRound(market: Address): Promise<Hash> {
     const { publicClient, walletClient } = this.clients();
+
+    // The old contract's startRound() does not take payment value or call an oracle
+    const txHash = await walletClient.writeContract({
+      address: market,
+      abi: PredictionMarketABI,
+      functionName: "startRound",
+    });
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    return txHash;
+  }
+
+  private async requestLockPrice(market: Address): Promise<Hash> {
+    const { publicClient, walletClient } = this.clients();
+    
+    const epoch = await publicClient.readContract({
+      address: market,
+      abi: PredictionMarketABI,
+      functionName: "currentEpoch",
+    });
+    
     const deposit = await publicClient.readContract({
       address: market,
       abi: PredictionMarketABI,
       functionName: "REQUEST_DEPOSIT",
     });
+
+    // Calls requestLockPrice(uint256) matching the old contract layout
     const txHash = await walletClient.writeContract({
       address: market,
       abi: PredictionMarketABI,
-      functionName: "startRound",
+      functionName: "requestLockPrice",
+      args: [epoch],
       value: deposit,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
     return txHash;
   }
 
-  private waitUntilLiveThenScheduleClose(market: Address, closeAfterMs: number) {
-    if (this.livePollId) {
-      clearInterval(this.livePollId);
-      this.livePollId = null;
-    }
-
-    const startedAt = Date.now();
-    const maxWaitMs = 2 * 60_000; // safety: stop polling after 2 minutes
-
-    const check = async () => {
-      if (!this.state.running) return;
-      try {
-        const { publicClient } = this.clients();
-        const round = await publicClient.readContract({
-          address: market,
-          abi: PredictionMarketABI,
-          functionName: "getCurrentRound",
-        });
-        // ABI tuple: [..., lockPrice, closePrice, ..., status]
-        const lockPrice = (round as any).lockPrice as bigint | undefined;
-        const closePrice = (round as any).closePrice as bigint | undefined;
-        const status = (round as any).status as number | undefined;
-
-        // Some deployments gate `requestClosePrice` on LIVE; others may use LOCKED as the "ready" state.
-        // We treat "lock price is present" as the canonical signal that the round can proceed.
-        const hasLockPrice = typeof lockPrice === "bigint" && lockPrice !== 0n;
-        const isLive = (typeof status === "number" && status === 0) || hasLockPrice;
-        const isEnded = typeof closePrice === "bigint" && closePrice !== 0n;
-        if (isEnded) {
-          if (this.livePollId) clearInterval(this.livePollId);
-          this.livePollId = null;
-          return;
-        }
-
-        if (!isLive) {
-          if (Date.now() - startedAt > maxWaitMs) {
-            if (this.livePollId) clearInterval(this.livePollId);
-            this.livePollId = null;
-            this.state.lastError = "Lock callback not received (round not LIVE).";
-          }
-          return;
-        }
-
-        if (this.livePollId) clearInterval(this.livePollId);
-        this.livePollId = null;
-
-        this.state.nextCloseAt = Date.now() + closeAfterMs;
-        this.timeouts.push(
-          setTimeout(() => {
-            this.requestClosePrice(market).catch((e) => {
-              this.state.lastError = e instanceof Error ? e.message : String(e);
-            });
-          }, closeAfterMs)
-        );
-      } catch (e) {
-        this.state.lastError = e instanceof Error ? e.message : String(e);
-      }
-    };
-
-    this.livePollId = setInterval(() => void check(), 3_000);
-    void check();
-  }
-
   private async requestClosePrice(market: Address): Promise<Hash> {
     const { publicClient, walletClient } = this.clients();
+    
     const epoch = await publicClient.readContract({
       address: market,
       abi: PredictionMarketABI,
       functionName: "currentEpoch",
     });
+    
     const deposit = await publicClient.readContract({
       address: market,
       abi: PredictionMarketABI,
       functionName: "REQUEST_DEPOSIT",
     });
 
+    // Calls requestClosePrice(uint256) matching the old contract layout
     const txHash = await walletClient.writeContract({
       address: market,
       abi: PredictionMarketABI,
@@ -295,14 +299,6 @@ export class MarketService {
       value: deposit,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
-    this.state.lastActions = this.state.lastActions ?? {
-      startedAt: null,
-      closeRequestedAt: null,
-      startTxHash: null,
-      closeTxHash: null,
-    };
-    this.state.lastActions.closeRequestedAt = Date.now();
-    this.state.lastActions.closeTxHash = txHash;
     return txHash;
   }
 }
@@ -312,4 +308,3 @@ export function getMarketServiceSingleton() {
   if (!g.__marketService) g.__marketService = new MarketService();
   return g.__marketService;
 }
-// create market ( start round , lockPrice ) --> (close price after 5 minute)

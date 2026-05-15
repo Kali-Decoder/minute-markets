@@ -6,25 +6,17 @@ pragma solidity ^0.8.24;
                 SOMNIA PREDICTION MARKET
 =============================================================
 
-Updated Architecture
-
-Flow:
-1. startRound()
-    -> fetches lock price immediately
-
-2. Somnia callback
-    -> lockPrice stored
-    -> round becomes LIVE
-
-3. Users bet for 5 minutes
-
-4. requestClosePrice()
-    -> round becomes LOCKED
-
-5. Somnia callback
-    -> closePrice stored
-    -> rewards calculated
-    -> round ENDED
+Features:
+- 5 minute prediction rounds
+- UP / DOWN betting
+- Somnia Agents integration
+- CoinGecko price settlement
+- Automatic round locking
+- Automatic round ending
+- Reward distribution
+- Treasury fee
+- Claim rewards
+- Cancelled round refunds
 
 =============================================================
 */
@@ -79,6 +71,7 @@ contract PredictionMarket is
         uint256 epoch;
 
         uint256 startTimestamp;
+        uint256 lockTimestamp;
         uint256 closeTimestamp;
 
         uint256 lockPrice;
@@ -118,7 +111,7 @@ contract PredictionMarket is
 
     uint256 public currentEpoch;
 
-    uint256 public treasuryFee = 300;
+    uint256 public treasuryFee = 300; // 3%
 
     uint256 public minBetAmount =
         0.01 ether;
@@ -168,7 +161,7 @@ contract PredictionMarket is
         uint256 requestId
     );
 
-    event RoundLive(
+    event RoundLocked(
         uint256 indexed epoch,
         uint256 lockPrice
     );
@@ -219,20 +212,13 @@ contract PredictionMarket is
     }
 
     // =============================================================
-    //                     START ROUND
+    //                     ROUND MANAGEMENT
     // =============================================================
 
     function startRound()
         external
-        payable
         onlyOwner
     {
-        require(
-            msg.value >=
-                REQUEST_DEPOSIT,
-            "Insufficient deposit"
-        );
-
         currentEpoch++;
 
         Round storage round = rounds[
@@ -244,17 +230,44 @@ contract PredictionMarket is
         round.startTimestamp =
             block.timestamp;
 
-        round.closeTimestamp =
+        round.lockTimestamp =
             block.timestamp +
             roundInterval;
 
-        /*
-            LOCKED until
-            lock price arrives
-        */
+        round.closeTimestamp =
+            block.timestamp +
+            (roundInterval * 2);
 
         round.status = RoundStatus
-            .LOCKED;
+            .LIVE;
+
+        emit RoundStarted(
+            currentEpoch
+        );
+    }
+
+    // =============================================================
+    //                 REQUEST LOCK PRICE
+    // =============================================================
+
+    function requestLockPrice(
+        uint256 epoch
+    ) external payable onlyOwner {
+        Round storage round = rounds[
+            epoch
+        ];
+
+        require(
+            round.status ==
+                RoundStatus.LIVE,
+            "Round not live"
+        );
+
+        require(
+            msg.value >=
+                REQUEST_DEPOSIT,
+            "Insufficient deposit"
+        );
 
         string memory url = string
             .concat(
@@ -289,7 +302,7 @@ contract PredictionMarket is
 
         requestToEpoch[
             requestId
-        ] = currentEpoch;
+        ] = epoch;
 
         requestIsLock[
             requestId
@@ -299,15 +312,12 @@ contract PredictionMarket is
             requestId
         ] = true;
 
-        emit RoundStarted(
-            currentEpoch
-        );
-
         emit LockPriceRequested(
-            currentEpoch,
+            epoch,
             requestId
         );
 
+        // refund excess
         if (
             msg.value >
             REQUEST_DEPOSIT
@@ -331,17 +341,10 @@ contract PredictionMarket is
             epoch
         ];
 
-        // Lock price is requested during startRound() and the round stays LOCKED
-        // until the Somnia callback stores lockPrice. Use lockPrice as the canonical
-        // signal that the round is ready to close, instead of relying only on status.
         require(
-            round.lockPrice != 0,
+            round.status ==
+                RoundStatus.LOCKED,
             "Round not locked"
-        );
-
-        require(
-            round.closePrice == 0,
-            "Round already closed"
         );
 
         require(
@@ -349,13 +352,6 @@ contract PredictionMarket is
                 REQUEST_DEPOSIT,
             "Insufficient deposit"
         );
-
-        /*
-            STOP BETTING
-        */
-
-        round.status = RoundStatus
-            .LOCKED;
 
         string memory url = string
             .concat(
@@ -405,6 +401,7 @@ contract PredictionMarket is
             requestId
         );
 
+        // refund excess
         if (
             msg.value >
             REQUEST_DEPOSIT
@@ -420,6 +417,11 @@ contract PredictionMarket is
     // =============================================================
     //                     SOMNIA CALLBACK
     // =============================================================
+
+    /*
+        Called automatically
+        by Somnia Platform
+    */
 
     function handleResponse(
         uint256 requestId,
@@ -443,6 +445,10 @@ contract PredictionMarket is
         delete pendingRequests[
             requestId
         ];
+
+        // =========================================================
+        // REQUEST FAILED
+        // =========================================================
 
         if (
             status !=
@@ -470,7 +476,7 @@ contract PredictionMarket is
         );
 
         // =========================================================
-        // LOCK PRICE RESPONSE
+        // LOCK PRICE
         // =========================================================
 
         if (
@@ -480,21 +486,17 @@ contract PredictionMarket is
         ) {
             round.lockPrice = price;
 
-            /*
-                USERS CAN BET NOW
-            */
-
             round.status = RoundStatus
-                .LIVE;
+                .LOCKED;
 
-            emit RoundLive(
+            emit RoundLocked(
                 epoch,
                 price
             );
         }
 
         // =========================================================
-        // CLOSE PRICE RESPONSE
+        // CLOSE PRICE
         // =========================================================
 
         else {
@@ -554,8 +556,7 @@ contract PredictionMarket is
         Position position
     ) internal {
         require(
-            msg.value >=
-                minBetAmount,
+            msg.value >= minBetAmount,
             "Bet too low"
         );
 
@@ -570,9 +571,9 @@ contract PredictionMarket is
         );
 
         require(
-            block.timestamp <=
-                round.closeTimestamp,
-            "Round ended"
+            block.timestamp <
+                round.lockTimestamp,
+            "Round locked"
         );
 
         BetInfo storage bet = ledger[
@@ -616,8 +617,8 @@ contract PredictionMarket is
         ];
 
         uint256 treasuryAmount = (round
-            .totalPool *
-            treasuryFee) / 10000;
+            .totalPool * treasuryFee) /
+            10000;
 
         round.treasuryAmount =
             treasuryAmount;
@@ -672,13 +673,16 @@ contract PredictionMarket is
 
             uint256 reward;
 
+            // cancelled round
             if (
                 round.status ==
                 RoundStatus
                     .CANCELLED
             ) {
                 reward = bet.amount;
-            } else {
+            }
+
+            else {
                 bool won;
 
                 if (

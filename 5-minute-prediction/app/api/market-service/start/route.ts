@@ -13,9 +13,14 @@ export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const service = getMarketServiceSingleton();
+  
   service.start({
-    createEveryMs: 5 * 60_000,
-    closeAfterMs: 5 * 60_000,
+    // Total round lifecycle = 5m betting window + 5m locked window = 10 minutes total execution.
+    // We set createEveryMs to 12 minutes so a new market initializes cleanly after the previous one finishes.
+    createEveryMs: 12 * 60_000, 
+    lockAfterMs: 5 * 60_000,   // Wait 5 minutes for user bets before fetching opening price
+    closeAfterMs: 5 * 60_000,  // Wait 5 minutes after locking before fetching closing price
   });
+
   return NextResponse.json(service.getState());
 }

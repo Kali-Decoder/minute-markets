@@ -93,24 +93,26 @@ export function PredictionMarketCard({
 
   const startMs = typeof startTimestamp === "bigint" ? Number(startTimestamp) * 1000 : null;
   const closeMs = typeof closeTimestamp === "bigint" ? Number(closeTimestamp) * 1000 : null;
-  const hasClosePrice = typeof closePrice === "bigint" && closePrice !== 0n;
-  const isEnded = hasClosePrice || roundStatus === 2;
+  
+  // === FIX STATE MACHINE FLAGS TO ALIGN WITH CONTRACT STATE ENUM ===
+  const isCancelled = roundStatus === 3;
+  const isEnded = roundStatus === 2 || (typeof closePrice === "bigint" && closePrice !== 0n);
 
   const isLocked = useMemo(() => {
-    if (isEnded) return false;
+    if (isEnded || isCancelled) return false;
+    if (roundStatus === 1) return true; // Explicitly locked via contract
     if (typeof closeMs !== "number" || !Number.isFinite(closeMs)) return false;
     return now >= closeMs;
-  }, [closeMs, isEnded, now]);
+  }, [closeMs, isEnded, isCancelled, roundStatus, now]);
 
   const isLive = useMemo(() => {
-    if (isEnded) return false;
+    if (isEnded || isCancelled || isLocked) return false;
+    if (roundStatus === 0) return true; // Explicitly live via contract
     if (typeof roundEpoch !== "bigint" || roundEpoch === 0n) return false;
-    if (isLocked) return false;
-    // Live once round is started and we haven't reached close time yet.
     return true;
-  }, [isEnded, isLocked, roundEpoch]);
+  }, [isEnded, isCancelled, isLocked, roundStatus, roundEpoch]);
 
-  const displayStatus = isEnded ? "ENDED" : isLocked ? "LOCKED" : isLive ? "LIVE" : statusLabel;
+  const displayStatus = isCancelled ? "CANCELLED" : isEnded ? "ENDED" : isLocked ? "LOCKED" : isLive ? "LIVE" : statusLabel;
   const isComingSoon = isLive && typeof startMs === "number" && Number.isFinite(startMs) && startMs > now;
 
   useEffect(() => {

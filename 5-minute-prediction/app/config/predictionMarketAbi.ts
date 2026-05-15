@@ -249,7 +249,7 @@ export const PredictionMarketABI =[
         "type": "uint256"
       }
     ],
-    "name": "RoundLive",
+    "name": "RoundLocked",
     "type": "event"
   },
   {
@@ -446,6 +446,11 @@ export const PredictionMarketABI =[
           },
           {
             "internalType": "uint256",
+            "name": "lockTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "closeTimestamp",
             "type": "uint256"
           },
@@ -536,6 +541,11 @@ export const PredictionMarketABI =[
           {
             "internalType": "uint256",
             "name": "startTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockTimestamp",
             "type": "uint256"
           },
           {
@@ -970,6 +980,19 @@ export const PredictionMarketABI =[
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "epoch",
+        "type": "uint256"
+      }
+    ],
+    "name": "requestLockPrice",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "",
         "type": "uint256"
       }
@@ -1016,6 +1039,11 @@ export const PredictionMarketABI =[
       {
         "internalType": "uint256",
         "name": "startTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lockTimestamp",
         "type": "uint256"
       },
       {
@@ -1128,7 +1156,7 @@ export const PredictionMarketABI =[
     "inputs": [],
     "name": "startRound",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

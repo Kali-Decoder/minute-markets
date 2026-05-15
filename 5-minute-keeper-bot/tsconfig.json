@@ -2,7 +2,7 @@
     "compilerOptions": {
       "target": "ES2022",
       "module": "CommonJS",
-      "moduleResolution": "node",
+      "moduleResolution": "Node", // ✅ Capital "N" makes it use modern Node resolution
       "outDir": "./dist",
       "rootDir": "./src",
       "strict": true,

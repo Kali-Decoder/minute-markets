@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { TrendingUp, Eye, Heart, Repeat2, MessageCircle, Twitter } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { RemoteImageCascade } from "@/app/components/RemoteImageCascade";
+import { cryptoIdenticonFallback } from "@/app/config/tokenLogos";
 
 // --- Utility Functions ---
 function getTimeLeft(endTime: string | Date): string {
@@ -97,7 +99,21 @@ export function BinaryMarketCard(props: BinaryMarketCardProps) {
     status = "active",
   } = props;
   const [timeLeft, setTimeLeft] = useState<string>(() => getTimeLeft(endTime));
-  const [imageErrorForUrl, setImageErrorForUrl] = useState<string | null>(null);
+
+  const avatarSeed = useMemo(() => {
+    const s = (authorHandle || authorName || "user").trim() || "user";
+    return `tw:${s}`;
+  }, [authorHandle, authorName]);
+
+  const avatarSources = useMemo(
+    () =>
+      avatarUrl?.trim()
+        ? [avatarUrl.trim(), cryptoIdenticonFallback(avatarSeed)]
+        : [cryptoIdenticonFallback(avatarSeed)],
+    [avatarUrl, avatarSeed],
+  );
+
+  const authorInitial = (authorName?.trim()?.charAt(0) || authorHandle?.trim()?.charAt(0) || "?").toUpperCase();
 
   // Update timer every second
   useEffect(() => {
@@ -125,11 +141,10 @@ export function BinaryMarketCard(props: BinaryMarketCardProps) {
 
   const statusInfo = getStatusInfo(status);
   const progress = Math.min(100, (currentValue / targetValue) * 100);
-  const imageErrored = !!avatarUrl && imageErrorForUrl === avatarUrl;
 
   return (
     <Link href={`/binary-markets/${id}`} passHref>
-      <div className="binary-market-card group relative w-full flex flex-col overflow-hidden rounded-xl border border-white/5 bg-surface transition-all hover:border-monad-purple/50 shadow-xl shadow-black/30">
+      <div className="binary-market-card group relative w-full flex flex-col overflow-hidden rounded-xl border border-white/5 bg-surface transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-monad-purple/50 hover:shadow-[0_18px_45px_-18px_rgba(135,109,255,0.28)] active:scale-[0.995] motion-reduce:transform-none motion-reduce:transition-none shadow-xl shadow-black/30">
         {/* Twitter-style Header */}
         <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 bg-white/[0.02]">
           <div className="flex items-center gap-2">
@@ -145,20 +160,19 @@ export function BinaryMarketCard(props: BinaryMarketCardProps) {
         <div className="p-4 space-y-3">
           {/* Author Info */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-monad-purple/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-              {avatarUrl && !imageErrored ? (
-                <img 
-                  key={avatarUrl}
-                  src={avatarUrl} 
-                  alt={authorName}
-                  className="w-full h-full object-cover"
-                  onError={() => setImageErrorForUrl(avatarUrl)}
-                />
-              ) : (
-                <span className="text-xs font-bold text-monad-purple">
-                  {authorName.charAt(0).toUpperCase()}
-                </span>
-              )}
+            <div className="h-10 w-10 rounded-full bg-monad-purple/20 flex items-center justify-center overflow-hidden flex-shrink-0 ring-2 ring-white/10">
+              <RemoteImageCascade
+                sources={avatarSources}
+                alt={`${authorName || authorHandle || "Author"} avatar`}
+                loading="lazy"
+                containerClassName="block size-full"
+                imgClassName="size-full object-cover"
+                fallback={
+                  <span className="flex size-full items-center justify-center text-xs font-bold text-monad-purple">
+                    {authorInitial}
+                  </span>
+                }
+              />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -186,7 +200,7 @@ export function BinaryMarketCard(props: BinaryMarketCardProps) {
             </div>
             <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-monad-purple to-purple-500 transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-monad-purple to-purple-500 motion-reduce:transition-none duration-300 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>

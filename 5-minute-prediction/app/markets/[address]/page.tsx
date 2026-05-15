@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -19,8 +18,9 @@ import {
   useMarketStartRound,
   useMarketUserBet,
 } from "@/app/hooks/usePredictionMarketContract";
-import { getTokenLogoUrl, tokenSymbolFromCoinId } from "@/app/config/tokenLogos";
+import { tokenSymbolFromCoinId } from "@/app/config/tokenLogos";
 import { MarketOddsHistoryChart, type OddsPoint } from "@/app/components/MarketOddsHistoryChart";
+import { TokenAvatar } from "@/app/components/TokenAvatar";
 
 function asAddress(value: string | string[] | undefined): Address | undefined {
   if (typeof value !== "string") return undefined;
@@ -108,8 +108,6 @@ export default function MarketDetailPage() {
     const m = (fromMarketSymbol || "").trim().match(/^[A-Za-z]{2,6}/)?.[0];
     return m ? m.toUpperCase() : null;
   }, [coinId, meta.marketSymbol.data]);
-  const tokenLogoUrl = useMemo(() => getTokenLogoUrl({ symbol: derivedSymbol, coinId }), [derivedSymbol, coinId]);
-
   const betState = useMemo(() => {
     if (!currentRound) return { canBet: false, reason: "Round not loaded yet." };
     if (currentRound.epoch === 0n) return { canBet: false, reason: "Round not started yet (owner must call startRound)." };
@@ -278,11 +276,9 @@ export default function MarketDetailPage() {
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 mb-5">
         <div className="flex items-start gap-3">
-          {tokenLogoUrl ? (
-            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-black/20 flex items-center justify-center flex-none">
-              <Image src={tokenLogoUrl} alt={`${derivedSymbol ?? "Token"} logo`} width={28} height={28} className="rounded-full" />
-            </div>
-          ) : null}
+          <div className="h-10 w-10 rounded-2xl border border-white/10 bg-black/20 flex items-center justify-center flex-none p-0.5">
+            <TokenAvatar symbol={derivedSymbol} coinId={coinId} size={36} className="ring-0 shadow-none" />
+          </div>
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">
               {typeof meta.marketName.data === "string" ? meta.marketName.data : "Market"}

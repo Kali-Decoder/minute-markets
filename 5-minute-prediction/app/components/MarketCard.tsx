@@ -7,6 +7,8 @@ import { twMerge } from "tailwind-merge";
 import { useEffect, useState, useMemo } from "react";
 import { formatEther } from "viem";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
+import { RemoteImageCascade } from "@/app/components/RemoteImageCascade";
+import { getTokenLogoCandidates } from "@/app/config/tokenLogos";
 
 function cn(...inputs: ClassValue[]) {
   // Utility function for merging Tailwind classes
@@ -90,16 +92,14 @@ export function MarketCard({
 
   // Extract coin symbol from parameter (e.g., "BTC/USD" -> "BTC" or "BTC" -> "BTC")
   const coinSymbol = useMemo(() => {
-   
     if (!parameter || parameter === "N/A" || parameter.trim() === "") {
-      console.log("MarketCard - parameter is empty/null, returning null");
       return null;
     }
     const trimmedParam = parameter.trim();
     const parts = trimmedParam.split("/");
     const symbol = parts[0]?.trim().toUpperCase();
     return symbol && symbol.length > 0 ? symbol : null;
-  }, [parameter, id]);
+  }, [parameter]);
 
   // Fetch coin price if category is "coin" or "coins" and we have a valid symbol
   const normalizedCategory = category?.trim().toLowerCase();
@@ -113,41 +113,19 @@ export function MarketCard({
 
 
   const currentPrice = useMemo(() => {
-    if (!coinPriceData?.data || coinPriceData.data.length === 0) {
-      console.log(`MarketCard [${id}] - No price data available for ${coinSymbol}`);
+    if (!coinPriceData?.data?.length) {
       return null;
     }
-    
-    // Since we only fetch one symbol, use the first item directly
+
     const coinData = coinPriceData.data[0];
-    
-    if (!coinData) {
-      console.log(`MarketCard [${id}] - No coin data found for ${coinSymbol}`);
+
+    if (!coinData?.prices?.length || coinData.error) {
       return null;
     }
-    
-    // Check for error in response
-    if (coinData.error) {
-      console.log(`MarketCard [${id}] - Error in price data for ${coinSymbol}:`, coinData.error);
-      return null;
-    }
-    
-    if (!coinData.prices || coinData.prices.length === 0) {
-      console.log(`MarketCard [${id}] - No prices array for ${coinSymbol}`);
-      return null;
-    }
-  
+
     const usdPrice = coinData.prices.find((p) => p.currency?.toUpperCase() === "USD");
-    const price = usdPrice?.value || coinData.prices[0]?.value || null;
-    
-    if (price) {
-      console.log(`MarketCard [${id}] - Successfully got price for ${coinSymbol}:`, price);
-    } else {
-      console.log(`MarketCard [${id}] - No valid price value for ${coinSymbol}`);
-    }
-    
-    return price;
-  }, [coinPriceData, coinSymbol, id]);
+    return usdPrice?.value || coinData.prices[0]?.value || null;
+  }, [coinPriceData, coinSymbol]);
 
   // Map status number to text and background color
   const getStatusInfo = (statusValue?: number) => {
@@ -200,7 +178,7 @@ export function MarketCard({
 
   return (
     <Link href={`/markets/${id}`} passHref>
-      <div className="market-card group relative w-full h-[380px] sm:h-[400px] flex flex-col overflow-hidden rounded-xl border border-white/5 bg-surface p-0 transition-all hover:border-monad-purple/50 shadow-xl shadow-black/30">
+      <div className="market-card group relative w-full h-[380px] sm:h-[400px] flex flex-col overflow-hidden rounded-xl border border-white/5 bg-surface p-0 shadow-xl shadow-black/30 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-monad-purple/50 hover:shadow-[0_20px_50px_-20px_rgba(135,109,255,0.35)] active:scale-[0.995] motion-reduce:transform-none motion-reduce:transition-none">
         <div className="flex items-center justify-between border-b border-white/5 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3.5 bg-white/[0.03] flex-shrink-0">
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
             {/* Pulsing Monad Purple Dot */}
@@ -264,35 +242,42 @@ function PoolCard({
   priceError?: Error | null;
   imageUrl?: string;
 }) {
-  const [imageErrorForUrl, setImageErrorForUrl] = useState<string | null>(null);
-  const imageErrored = !!imageUrl && imageErrorForUrl === imageUrl;
+  const logoSources = useMemo(() => {
+    const sym = coinSymbol ?? parameter?.split("/")[0]?.trim();
+    const tokenFallback = getTokenLogoCandidates({ symbol: sym, coinId: null });
+    const u = imageUrl?.trim();
+    return u ? [u, ...tokenFallback] : tokenFallback;
+  }, [imageUrl, coinSymbol, parameter]);
+
+  const initials = useMemo(() => {
+    const s = (coinSymbol || parameter?.split("/")[0] || "").trim();
+    const compact = s.replace(/[^A-Za-z0-9]/g, "");
+    const two = compact.slice(0, 2).toUpperCase();
+    return two.length >= 2 ? two : compact.slice(0, 1).toUpperCase() || "—";
+  }, [coinSymbol, parameter]);
 
   return (
     <div className={cn(
-      "flex flex-col p-3 sm:p-4 md:p-5 transition-colors flex-1 min-h-0",
+      "flex flex-col p-3 sm:p-4 md:p-5 transition-colors duration-200 flex-1 min-h-0",
       "hover:bg-white/[0.02]",
     )}>
       {/* Market Info */}
       <div className="flex items-center justify-between mb-3 sm:mb-4">
         {/* Left: Identity */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <div
-            className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] sm:text-xs font-bold text-black ring-2 ring-white/10 overflow-hidden"
-            style={{
-              backgroundColor: (imageUrl && !imageErrored) ? "transparent" : "#fff",
-            }}
-          >
-            {imageUrl && !imageErrored ? (
-              <img 
-                key={imageUrl}
-                src={imageUrl} 
-                alt={parameter || "N/A"}
-                className="w-full h-full object-cover"
-                onError={() => setImageErrorForUrl(imageUrl)}
-              />
-            ) : (
-              "NC"
-            )}
+          <div className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11 rounded-full flex-shrink-0 overflow-hidden ring-2 ring-white/10 bg-white/[0.06]">
+            <RemoteImageCascade
+              sources={logoSources}
+              alt={parameter || "Market"}
+              loading="lazy"
+              containerClassName="block size-full"
+              imgClassName="size-full object-cover"
+              fallback={
+                <span className="flex size-full items-center justify-center bg-gradient-to-br from-monad-purple/35 to-purple-900/55 text-[10px] sm:text-xs font-bold uppercase text-white tracking-tighter">
+                  {initials}
+                </span>
+              }
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1 sm:gap-1.5 mb-1">
@@ -334,7 +319,7 @@ function PoolCard({
 function FooterStat({ label, value, icon: Icon, statusBgColor }: { label: string, value: string, icon: React.ElementType, statusBgColor?: string }) {
   const isStatus = label === "Status";
   return (
-    <div className="bg-white/[0.03] py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-5 flex items-center gap-2 sm:gap-3 hover:bg-white/[0.05] transition-colors cursor-default">
+    <div className="bg-white/[0.03] py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-5 flex items-center gap-2 sm:gap-3 hover:bg-white/[0.055] transition-colors duration-200 cursor-default">
       <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-monad-purple flex-shrink-0" />
       <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
         {label}

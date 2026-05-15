@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { publicAssetUrl } from "@/app/config/publicAsset";
+import { BrandLogo } from "@/app/components/BrandLogo";
 import {
   Activity,
   AlertTriangle,
@@ -31,9 +30,10 @@ export default function Home() {
           </div>
 
           <div className="flex justify-center mb-6 sm:mb-8">
-            <div className="relative h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 rounded-3xl overflow-hidden border border-white/10 bg-black shadow-[0_0_40px_-12px_rgba(255,255,255,0.28)]">
-              <Image src={publicAssetUrl("/logo.png")} alt="MinuteMarkets" fill className="object-cover" priority />
-            </div>
+            <BrandLogo
+              priority
+              sizeClassName="h-24 w-24 sm:h-28 sm:h-28 md:h-32 md:w-32 rounded-3xl shadow-[0_0_40px_-12px_rgba(255,255,255,0.28)] hover:scale-[1.02] transition-transform duration-300 ease-out"
+            />
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-4 sm:mb-6 tracking-tight leading-tight px-2">

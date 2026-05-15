@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { formatEther } from "viem";
@@ -9,7 +8,7 @@ import { formatUnits } from "viem";
 import { Clock, ExternalLink } from "lucide-react";
 import { somniaTestnet } from "@/app/config/chains";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
-import { getTokenLogoUrl } from "@/app/config/tokenLogos";
+import { TokenAvatar } from "@/app/components/TokenAvatar";
 
 const ROUND_STATUS_LABEL: Record<number, string> = {
   0: "LIVE",
@@ -72,8 +71,6 @@ export function PredictionMarketCard({
     enabled: !!coinSymbol,
     refetchInterval: 10000,
   });
-
-  const tokenLogoUrl = useMemo(() => getTokenLogoUrl({ symbol: coinSymbol, coinId }), [coinSymbol, coinId]);
 
   const currentPriceUsd = useMemo(() => {
     const coinData = coinPriceData?.data?.[0];
@@ -185,7 +182,8 @@ export function PredictionMarketCard({
       <Link
         href={`/markets/${address}`}
         data-market-card
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-colors overflow-hidden hover:border-monad-purple/40"
+        data-market-address={address.toLowerCase()}
+        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-all duration-200 ease-out overflow-hidden hover:border-monad-purple/40 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_-14px_rgba(135,109,255,0.22)]"
       >
         <div className="px-4 py-4 bg-black/20 border-b border-white/10">
           <div className="flex items-center justify-between gap-3">
@@ -201,9 +199,7 @@ export function PredictionMarketCard({
 
         <div className="relative p-4">
           <div className="flex items-center justify-center gap-2 mb-3">
-            {tokenLogoUrl ? (
-              <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={22} height={22} className="rounded-full" />
-            ) : null}
+            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={22} />
             <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ?? coinId}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-10 text-center">
@@ -231,7 +227,8 @@ export function PredictionMarketCard({
       <Link
         href={`/markets/${address}`}
         data-market-card
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-colors overflow-hidden opacity-75 hover:opacity-100 hover:border-monad-purple/40"
+        data-market-address={address.toLowerCase()}
+        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-all duration-200 ease-out overflow-hidden opacity-75 hover:opacity-100 hover:border-monad-purple/40 hover:-translate-y-0.5"
       >
         <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
           <div className="flex items-center justify-between gap-3">
@@ -243,26 +240,22 @@ export function PredictionMarketCard({
             </span>
             <div className="flex items-center gap-2">
               {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
-              <a
-                href={explorerUrl}
-                onClick={(e) => e.stopPropagation()}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40"
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150"
                 aria-label="Open in explorer"
                 title="Open in explorer"
               >
                 <ExternalLink className="h-4 w-4" />
-              </a>
+              </button>
             </div>
           </div>
         </div>
 
         <div className="p-4">
           <div className="flex items-center gap-2 mb-3">
-            {tokenLogoUrl ? (
-              <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={22} height={22} className="rounded-full" />
-            ) : null}
+            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={22} />
             <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
@@ -335,9 +328,10 @@ export function PredictionMarketCard({
     <Link
       href={`/markets/${address}`}
       data-market-card
+      data-market-address={address.toLowerCase()}
       className={[
-        "flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-white/5 transition-colors overflow-hidden",
-        isLive ? "border-monad-purple/40 hover:border-monad-purple/70" : "border-white/10 hover:border-monad-purple/40 opacity-80",
+        "flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-white/5 transition-all duration-200 ease-out overflow-hidden",
+        isLive ? "border-monad-purple/40 hover:border-monad-purple/70 hover:-translate-y-0.5" : "border-white/10 hover:border-monad-purple/40 opacity-80 hover:opacity-100 hover:-translate-y-0.5",
       ].join(" ")}
     >
       <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
@@ -362,26 +356,22 @@ export function PredictionMarketCard({
             {typeof roundEpoch === "bigint" ? (
               <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span>
             ) : null}
-            <a
-              href={explorerUrl}
-              onClick={(e) => e.stopPropagation()}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40"
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150"
               aria-label="Open in explorer"
               title="Open in explorer"
             >
               <ExternalLink className="h-4 w-4" />
-            </a>
+            </button>
           </div>
         </div>
 
         <div className="mt-3 flex items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              {tokenLogoUrl ? (
-                <Image src={tokenLogoUrl} alt={`${coinSymbol ?? "Token"} logo`} width={18} height={18} className="rounded-full flex-none" />
-              ) : null}
+              <TokenAvatar symbol={coinSymbol} coinId={coinId} size={18} className="flex-none" />
               <div className="text-[11px] text-gray-400 truncate">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
             </div>
             <div className="text-white text-base sm:text-lg font-semibold truncate">{name}</div>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { publicAssetUrl } from "@/app/config/publicAsset";
+import { BrandLogo } from "@/app/components/BrandLogo";
 
 export function AppLoader() {
   const [progress, setProgress] = useState(0);
@@ -35,9 +34,7 @@ export function AppLoader() {
     <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-black px-4">
       <div className="flex flex-col items-center gap-4 sm:gap-6 md:gap-8 w-full max-w-md">
         <div className="flex flex-col items-center gap-3 sm:gap-4">
-          <div className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-3xl overflow-hidden border border-white/10 bg-black shadow-[0_0_40px_-12px_rgba(255,255,255,0.25)]">
-            <Image src={publicAssetUrl("/logo.png")} alt="MinuteMarkets" fill className="object-cover" priority />
-          </div>
+          <BrandLogo sizeClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl shadow-[0_0_40px_-12px_rgba(255,255,255,0.25)]" priority />
           <div className="text-center">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight">
               <span className="text-monad-purple">Minute</span>Markets

@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { Search, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Search, Menu, X } from "lucide-react";
 // import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { WalletConnect } from "./WalletConnect";
+import { BrandLogo } from "./BrandLogo";
 import { useAccount } from "wagmi";
 import { ADMIN_ADDRESS } from "@/app/config/admin";
-import { publicAssetUrl } from "@/app/config/publicAsset";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -43,10 +42,12 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 gap-2 sm:gap-4">
         
         {/* 1. Left: Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0" onClick={() => setIsMobileMenuOpen(false)}>
-          <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl overflow-hidden border border-white/10 bg-black shadow-[0_0_18px_-4px_rgba(255,255,255,0.18)]">
-            <Image src={publicAssetUrl("/logo.png")} alt="MinuteMarkets" fill className="object-cover" priority />
-          </div>
+        <Link
+          href="/"
+          className="group flex items-center gap-2 shrink-0 transition-transform duration-200 ease-out active:scale-[0.98]"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <BrandLogo sizeClassName="h-9 w-9 sm:h-10 sm:w-10" priority />
           <span className="text-lg sm:text-xl font-bold tracking-tight text-white">
             <span className="text-monad-purple">Minute</span><span className="text-white">Markets</span>
           </span>
@@ -57,14 +58,14 @@ export function Navbar() {
           
           {/* Nav Links (Desktop) */}
           <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-400">
-            <Link href="/markets" className="hover:text-white transition-colors flex items-center gap-2">
+            <Link href="/markets" className="hover:text-white transition-colors duration-200 flex items-center gap-2 hover:-translate-y-px">
               5 Minute Markets
             </Link>
-            <Link href="/rewards" className="hover:text-white transition-colors flex items-center gap-2">
+            <Link href="/rewards" className="hover:text-white transition-colors duration-200 flex items-center gap-2 hover:-translate-y-px">
               Rewards
             </Link>
             {isAdmin ? (
-              <Link href="/admin" className="hover:text-white transition-colors flex items-center gap-2">
+              <Link href="/admin" className="hover:text-white transition-colors duration-200 flex items-center gap-2 hover:-translate-y-px">
                 Admin
               </Link>
             ) : null}
@@ -81,7 +82,7 @@ export function Navbar() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="mobile-menu-button lg:hidden p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+            className="mobile-menu-button lg:hidden p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-200 active:scale-95"
             aria-label="Toggle menu"
           >
             {isMobileMenuOpen ? (

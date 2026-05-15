@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
 import { PredictionMarketCard } from "@/app/components/PredictionMarketCard";
@@ -14,7 +13,7 @@ import { useMarketCurrentRound } from "@/app/hooks/usePredictionMarketContract";
 import { somniaTestnet } from "@/app/config/chains";
 import { getPredictionMarketFactoryAddress } from "@/app/config/predictionAddresses";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
-import { getTokenLogoUrl } from "@/app/config/tokenLogos";
+import { TokenAvatar } from "@/app/components/TokenAvatar";
 
 function asAddress(value: string): Address | null {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : null;
@@ -31,6 +30,21 @@ function matchesTab(coinId: string, tab: MarketTab): boolean {
   if (tab === "solana") return normalized === "solana" || normalized === "sol";
   if (tab === "somnia") return normalized === "somnia" || normalized === "somi";
   return true;
+}
+
+function tabFromCoinId(coinId: string): MarketTab | null {
+  const normalized = coinId.trim().toLowerCase();
+  if (!normalized) return null;
+  if (matchesTab(normalized, "bitcoin")) return "bitcoin";
+  if (matchesTab(normalized, "ethereum")) return "ethereum";
+  if (matchesTab(normalized, "solana")) return "solana";
+  if (matchesTab(normalized, "somnia")) return "somnia";
+  return null;
+}
+
+function scrollMarketCardIntoCenter(scrollRoot: HTMLElement | null, addressLower: string) {
+  const el = scrollRoot?.querySelector(`[data-market-address="${addressLower}"]`);
+  el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
 }
 
 function formatCountdown(ms: number): string {
@@ -81,7 +95,13 @@ export default function MarketsPage() {
     return list.filter(Boolean);
   }, [allMarkets]);
 
+  /** Factory list is typically chronological; show newest first so launches are at the start of the strip. */
+  const marketsNewestFirst = useMemo(() => [...markets].reverse(), [markets]);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const lastHandledLaunchKeyRef = useRef<string | null>(null);
+  const seenMarketIdsRef = useRef<Set<string>>(new Set());
+
   const scrollByCards = (direction: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
@@ -167,6 +187,78 @@ export default function MarketsPage() {
   const closeIn = serviceState?.nextCloseAt ? formatCountdown(serviceState.nextCloseAt - serviceNow) : null;
 
   const canCreate = chainId === somniaTestnet.id && !!factoryAddress;
+
+  const handleMarketMeta = useCallback(
+    (
+      address: Address,
+      meta: { tab: MarketTab | null; epoch: bigint; lockPrice: bigint; closePrice: bigint; closeTimestamp: bigint }
+    ) => {
+      setMarketMeta((prev) => {
+        const key = address.toLowerCase();
+        if (
+          prev[key] &&
+          prev[key].tab === meta.tab &&
+          prev[key].epoch === meta.epoch &&
+          prev[key].lockPrice === meta.lockPrice &&
+          prev[key].closePrice === meta.closePrice &&
+          prev[key].closeTimestamp === meta.closeTimestamp
+        ) {
+          return prev;
+        }
+        return { ...prev, [key]: meta };
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    const lc = serviceState?.lastCreatedMarket;
+    if (!lc?.address) return;
+    const addr = lc.address.toLowerCase();
+    const key = `${addr}:${lc.createdAt}`;
+    if (lastHandledLaunchKeyRef.current === key) return;
+    lastHandledLaunchKeyRef.current = key;
+
+    const tabGuess = tabFromCoinId(lc.coinId);
+    if (tabGuess) setTab(tabGuess);
+
+    const run = () => scrollMarketCardIntoCenter(scrollRef.current, addr);
+    requestAnimationFrame(() => requestAnimationFrame(run));
+    const t1 = setTimeout(run, 250);
+    const t2 = setTimeout(run, 700);
+    const t3 = setTimeout(run, 1500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [serviceState?.lastCreatedMarket]);
+
+  useEffect(() => {
+    const ordered = marketsNewestFirst.map((a) => (a as string).toLowerCase());
+    const next = new Set(ordered);
+    const prev = seenMarketIdsRef.current;
+    let added: string | undefined;
+    if (prev.size > 0) {
+      for (const id of ordered) {
+        if (!prev.has(id)) {
+          added = id;
+          break;
+        }
+      }
+    }
+    seenMarketIdsRef.current = next;
+    if (!added) return;
+
+    const run = () => scrollMarketCardIntoCenter(scrollRef.current, added!);
+    requestAnimationFrame(() => requestAnimationFrame(run));
+    const t1 = setTimeout(run, 200);
+    const t2 = setTimeout(run, 800);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [marketsNewestFirst]);
 
   const handleCreate = async () => {
     setCreateError(null);
@@ -275,39 +367,31 @@ export default function MarketsPage() {
                   {headerPriceLoading ? "—" : headerPriceUsd != null ? `$${headerPriceUsd.toFixed(4)}` : "—"}
                 </div>
                 <div className="flex items-center gap-2">
-                  {getTokenLogoUrl({ symbol: headerSymbol, coinId: null }) ? (
-                    <Image
-                      src={getTokenLogoUrl({ symbol: headerSymbol, coinId: null })!}
-                      alt={`${headerSymbol} logo`}
-                      width={18}
-                      height={18}
-                      className="rounded-full"
-                    />
-                  ) : null}
+                  <TokenAvatar symbol={headerSymbol} coinId={null} size={20} />
                   <div className="text-xs text-gray-300 font-semibold tracking-wide">{headerSymbol}USD</div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 flex items-center gap-2">
                 {([
-                  { key: "bitcoin", label: "BTC", logo: getTokenLogoUrl({ symbol: "BTC", coinId: null }) },
-                  { key: "ethereum", label: "ETH", logo: getTokenLogoUrl({ symbol: "ETH", coinId: null }) },
-                  { key: "solana", label: "SOL", logo: getTokenLogoUrl({ symbol: "SOL", coinId: null }) },
-                  { key: "somnia", label: "SOMI", logo: getTokenLogoUrl({ symbol: "SOMI", coinId: null }) },
+                  { key: "bitcoin", label: "BTC", symbol: "BTC" },
+                  { key: "ethereum", label: "ETH", symbol: "ETH" },
+                  { key: "solana", label: "SOL", symbol: "SOL" },
+                  { key: "somnia", label: "SOMI", symbol: "SOMI" },
                 ] as const).map((t) => (
                   <button
                     key={t.key}
                     onClick={() => setTab(t.key)}
                     className={[
-                      "h-10 px-3 rounded-xl border text-sm font-semibold transition-colors inline-flex items-center gap-2",
+                      "h-10 px-3 rounded-xl border text-sm font-semibold duration-200 ease-out inline-flex items-center gap-2 active:scale-[0.97]",
                       tab === t.key
                         ? "border-monad-purple/50 bg-monad-purple/10 text-white"
-                        : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30",
+                        : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30 hover:-translate-y-px",
                     ].join(" ")}
                     aria-label={`Filter ${t.label}`}
                     title={t.label}
                   >
-                    {t.logo ? <Image src={t.logo} alt={`${t.label} logo`} width={18} height={18} className="rounded-full" /> : null}
+                    <TokenAvatar symbol={t.symbol} coinId={null} size={18} className="ring-1 ring-white/15" />
                     <span className="hidden sm:inline">{t.label}</span>
                     <span
                       className={[
@@ -326,7 +410,7 @@ export default function MarketsPage() {
             <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => scrollByCards("left")}
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 hover:-translate-y-px active:scale-95 inline-flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none"
                 aria-label="Scroll left"
                 title="Scroll left"
               >
@@ -334,7 +418,7 @@ export default function MarketsPage() {
               </button>
               <button
                 onClick={() => scrollByCards("right")}
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 hover:-translate-y-px active:scale-95 inline-flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none"
                 aria-label="Scroll right"
                 title="Scroll right"
               >
@@ -392,24 +476,17 @@ export default function MarketsPage() {
           <div className="relative isolate">
             <div
               ref={scrollRef}
-              className="flex w-full max-w-full gap-4 overflow-x-scroll pb-4 snap-x snap-mandatory scroll-smooth"
+              className="flex w-full max-w-full gap-4 overflow-x-scroll pb-4 snap-x snap-mandatory scroll-smooth scroll-pl-[max(1rem,calc(50%-11.875rem))] scroll-pr-[max(1rem,calc(50%-11.875rem))]"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
-              {markets.map((m) => (
+              {marketsNewestFirst.map((m) => (
                 <MarketCardFromFactory
                   key={m}
                   market={m}
                   tab={tab}
                   showLiveOnly={showLiveOnly}
                   nowMs={serviceNow}
-                  onMeta={(address, meta) =>
-                    setMarketMeta((prev) => {
-                      const key = address.toLowerCase();
-                      const next = { ...prev };
-                      next[key] = meta;
-                      return next;
-                    })
-                  }
+                  onMeta={handleMarketMeta}
                 />
               ))}
             </div>

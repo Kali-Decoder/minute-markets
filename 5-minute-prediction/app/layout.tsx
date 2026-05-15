@@ -5,22 +5,29 @@ import { Providers } from "./providers";
 import { FontLoader } from "./components/FontLoader";
 import { AppLoader } from "./components/AppLoader";
 import { publicAssetUrl } from "@/app/config/publicAsset";
+import { BRAND_LOGO_FILENAME } from "@/app/config/brandAssets";
+
+const brandIcon = publicAssetUrl(`/${BRAND_LOGO_FILENAME}`);
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+const metadataBase = siteUrl ? new URL(siteUrl.endsWith("/") ? siteUrl : `${siteUrl}/`) : undefined;
 
 export const metadata: Metadata = {
+  ...(metadataBase ? { metadataBase } : {}),
   title: "MinuteMarkets | 5-Minute Prediction Market",
   description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
   icons: {
-    icon: [{ url: publicAssetUrl("/logo.png"), type: "image/png" }],
+    icon: [{ url: brandIcon, type: "image/svg+xml" }],
   },
   openGraph: {
     title: "MinuteMarkets | 5-Minute Prediction Market",
     description: "AI-powered 5-minute UP/DOWN prediction market on Somnia.",
     url: "https://somnia.network",
-    images: [publicAssetUrl("/logo.png")],
+    images: [brandIcon],
   },
   twitter: {
     card: "summary_large_image",
-    images: [publicAssetUrl("/logo.png")],
+    images: [brandIcon],
   },
 };
 

@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 
 function authorized(req: Request): boolean {
   const token = process.env.MARKET_SERVICE_ADMIN_TOKEN;
+  console.log("token",{token})
   if (!token) return true;
   return req.headers.get("x-admin-token") === token;
 }

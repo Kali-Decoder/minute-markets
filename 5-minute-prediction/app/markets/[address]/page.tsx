@@ -142,13 +142,11 @@ export default function MarketDetailPage() {
     const point: OddsPoint = { t: Date.now(), yes, no };
     setOddsSeries((prev) => {
       const next = [...prev, point];
-      // keep last ~24 hours at 5s sampling (~17k points) but cap for safety
       return next.slice(-20_000);
     });
   }, [currentRound]);
 
   useEffect(() => {
-    // poll round data so the chart becomes a real "two-line" time series
     if (!market) return;
     const id = setInterval(() => {
       void refetchRound();
@@ -160,13 +158,11 @@ export default function MarketDetailPage() {
     if (!currentRound || !userBet) return 0n;
     if (userBet.claimed) return 0n;
 
-    // claim() allows ENDED or CANCELLED only
     if (currentRound.status === 3) {
-      // CANCELLED: refund bet amount
       return userBet.amount ?? 0n;
     }
 
-    if (currentRound.status !== 2) return 0n; // not ENDED
+    if (currentRound.status !== 2) return 0n;
 
     const userWon =
       (currentRound.upWon && userBet.position === 0) || (!currentRound.upWon && userBet.position === 1);
@@ -228,11 +224,17 @@ export default function MarketDetailPage() {
     try {
       if (!currentRound) throw new Error("Round not loaded yet.");
       if (currentRound.epoch === 0n) throw new Error("Round not started yet (owner must call startRound).");
+      // FIXED: Added an explicit runtime check to reassure the TypeScript compiler 
+      // that currentEpoch can never pass forward as "undefined"
+      if (!currentEpoch) throw new Error("Current epoch not available.");
       if (currentRound.status !== 0) throw new Error(`Round not live (${ROUND_STATUS_LABEL[currentRound.status] ?? currentRound.status}).`);
+      
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) throw new Error("Round locked.");
+      
       const value = parseEther(amountEth || "0");
       if (value <= 0n) throw new Error("Bet amount must be greater than 0.");
+      
       if (direction === "UP") await betUp.betUp({ epoch: currentEpoch, value });
       else await betDown.betDown({ epoch: currentEpoch, value });
       await doRefetchAll();

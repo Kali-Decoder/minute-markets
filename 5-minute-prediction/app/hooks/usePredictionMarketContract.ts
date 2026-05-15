@@ -200,8 +200,7 @@ export function useMarketStartRound(market?: Address) {
     return writeContractAsync({
       address: market,
       abi: PredictionMarketABI,
-      functionName: "startRound",
-      value: deposit,
+      functionName: "startRound"
     });
   };
 

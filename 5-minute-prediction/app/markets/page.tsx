@@ -154,7 +154,9 @@ export default function MarketsPage() {
   const { data: serviceState } = useQuery<ServiceState>({
     queryKey: ["market-service-status-mini"],
     queryFn: async () => {
-      const res = await fetch("/api/market-service/status", { cache: "no-store" });
+      const res = await fetch("https://minute-markets.onrender.com/api/market-service/status", { 
+        cache: "no-store" 
+      });
       return (await res.json()) as ServiceState;
     },
     refetchInterval: 3_000,

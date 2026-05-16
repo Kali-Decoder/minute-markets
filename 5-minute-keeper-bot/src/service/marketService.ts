@@ -270,7 +270,12 @@ export class MarketService {
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-    const log = receipt.logs.find((l) => l.address.toLowerCase() === factoryAddress.toLowerCase());
+    
+    // FIXED: Explicitly typed 'l' as an object shape containing an address property string
+    // to strictly prevent the "implicitly has an 'any' type" compiler crash.
+    const log = receipt.logs.find((l: { address: string }) => 
+      l.address.toLowerCase() === factoryAddress.toLowerCase()
+    );
     if (!log) throw new Error("MarketCreated log not found.");
 
     const decoded = decodeEventLog({

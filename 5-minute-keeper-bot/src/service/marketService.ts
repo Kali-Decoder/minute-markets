@@ -31,7 +31,7 @@ export type ServiceState = {
 };
 
 type StartOptions = {
-  createEveryMs: number;
+  createEveryMs: number; // Ignored in linear mode to prioritize smooth pipeline flow
   lockAfterMs: number;
   closeAfterMs: number;
 };
@@ -43,12 +43,13 @@ const COINS = [
   { coinId: "somnia", symbol: "SOMI" },
 ] as const;
 
+// Helper utility to pause execution thread smoothly
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class MarketService {
-  private intervalId: ReturnType<typeof setInterval> | null = null;
-  private timeouts: ReturnType<typeof setTimeout>[] = [];
+  private isRunningInternal = false;
   private busy = false;
 
-  // FIXED: Single instance client placeholders to persist transaction state and nonces
   private cachedPublicClient: any = null;
   private cachedWalletClient: any = null;
   private cachedAccount: any = null;
@@ -71,18 +72,15 @@ export class MarketService {
   };
 
   constructor() {
-    // FIXED: Initialize cryptographic and web3 communication configurations safely upon boot
     this.initClients();
   }
 
-  // Standardized administrative logger
   private log(message: string, context = "SYSTEM", level: "INFO" | "WARN" | "SUCCESS" | "ERROR" = "INFO") {
     const timestamp = new Date().toLocaleString("sv-SE", { timeZoneName: "short" }).replace(" ", " ");
     const icons = { INFO: "ℹ️", WARN: "⚠️", SUCCESS: "✅", ERROR: "🚨" };
     console.log(`[${timestamp}] [${context}] ${icons[level]} ${message}`);
   }
 
-  // FIXED: Consolidated client generator logic to persist nonce states throughout class lifecycles
   private initClients() {
     try {
       const rpcUrl = process.env.SOMNIA_RPC_URL || "https://dream-rpc.somnia.network/";
@@ -119,59 +117,42 @@ export class MarketService {
   }
 
   stop() {
-    if (this.intervalId) clearInterval(this.intervalId);
-    this.intervalId = null;
-    for (const t of this.timeouts) clearTimeout(t);
-    this.timeouts = [];
+    this.isRunningInternal = false;
     this.busy = false;
     this.state.running = false;
     this.state.nextCreateAt = null;
     this.state.nextLockAt = null;
     this.state.nextCloseAt = null;
-    this.state.lastActions = {
-      startedAt: null,
-      lockRequestedAt: null,
-      closeRequestedAt: null,
-      startTxHash: null,
-      lockTxHash: null,
-      closeTxHash: null,
-    };
-    this.log("Market Service has been manually stopped.", "ENGINE", "WARN");
+    this.log("Market Service engine has received structural stop command.", "ENGINE", "WARN");
   }
 
-  start(options: StartOptions) {
-    if (this.state.running) {
-      this.log("Start requested but service is already running.", "ENGINE", "WARN");
+  async start(options: StartOptions) {
+    if (this.isRunningInternal) {
+      this.log("Start requested but service loop is active.", "ENGINE", "WARN");
       return;
     }
 
+    this.isRunningInternal = true;
     this.state.running = true;
     this.state.lastError = null;
-    this.state.nextCreateAt = Date.now() + options.createEveryMs;
-    this.state.nextLockAt = null;
-    this.state.nextCloseAt = null;
 
-    this.log(`Market automation engine successfully ignited. Cycles run every ${options.createEveryMs / 60000} minutes.`, "ENGINE", "SUCCESS");
+    this.log("Market automation step-engine ignited successfully.", "ENGINE", "SUCCESS");
 
-    const tick = async () => {
-      if (!this.state.running) return;
-      if (this.busy) return;
-      if (!this.state.nextCreateAt) return;
-      if (Date.now() < this.state.nextCreateAt) return;
-
-      this.busy = true;
+    // Sequential Pipeline Execution Loop
+    while (this.isRunningInternal) {
       try {
+        this.busy = true;
         console.log("\n----------------------------------------------------------------------");
-        this.log("Initiating new lifecycle block step...", "LIFECYCLE", "INFO");
-        
-        // 1. Deploy Market Contract
+        this.log("Starting production market lifecycle sequence...", "LIFECYCLE", "INFO");
+
+        // Step 1: Deploy Market Contract
+        this.state.nextCreateAt = Date.now();
         const { marketAddress, coinId, txHash } = await this.createMarket();
-        const now = Date.now();
         
         this.state.lastCreatedMarket = {
           address: marketAddress,
           coinId,
-          createdAt: now,
+          createdAt: Date.now(),
           txHash,
         };
         this.state.lastActions = {
@@ -183,67 +164,66 @@ export class MarketService {
           closeTxHash: null,
         };
 
-        // 2. Call startRound() to open betting (LIVE status 0)
-        this.log(`Opening user betting allocations. Executing startRound()...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
+        // Step 2: Call startRound() to make it LIVE
+        this.log(`Opening betting windows. Executing startRound()...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
         const startHash = await this.startRound(marketAddress);
         this.state.lastActions.startedAt = Date.now();
         this.state.lastActions.startTxHash = startHash;
         this.log(`Round status pushed to LIVE. Tx: ${startHash}`, `MARKET:${coinId.toUpperCase()}`, "SUCCESS");
 
-        // 3. Schedule Lock Price Request
+        const { publicClient } = this.clients();
+        const targetEpoch = await publicClient.readContract({ 
+          address: marketAddress, 
+          abi: PredictionMarketABI, 
+          functionName: "currentEpoch" 
+        });
+
+        // Step 3: Wait out the Betting Window
+        this.state.nextCreateAt = null;
         this.state.nextLockAt = Date.now() + options.lockAfterMs;
-        this.log(`Betting window ticking. Lock price execution scheduled in ${options.lockAfterMs / 60000}m`, "SCHEDULER", "INFO");
-        
-        this.timeouts.push(
-          setTimeout(async () => {
-            try {
-              if (!this.state.running) return;
-              
-              this.log(`Betting timer complete. Requesting lock price from Somnia Agents...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
-              const lockHash = await this.requestLockPrice(marketAddress);
-              this.state.lastActions!.lockRequestedAt = Date.now();
-              this.state.lastActions!.lockTxHash = lockHash;
-              this.state.nextLockAt = null;
-              this.log(`Lock price successfully requested. Tx: ${lockHash}`, `MARKET:${coinId.toUpperCase()}`, "SUCCESS");
+        this.log(`Betting window running. Lock price execution scheduled in ${options.lockAfterMs / 60000}m`, "SCHEDULER", "INFO");
+        await delay(options.lockAfterMs);
 
-              // 4. Schedule Close Price Request
-              this.state.nextCloseAt = Date.now() + options.closeAfterMs;
-              this.log(`Locked window ticking. Round settlement scheduled in ${options.closeAfterMs / 60000}m`, "SCHEDULER", "INFO");
-              
-              this.timeouts.push(
-                setTimeout(async () => {
-                  try {
-                    if (!this.state.running) return;
+        if (!this.isRunningInternal) break;
 
-                    this.log(`Locked interval completed. Pulling final settlement price...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
-                    const closeHash = await this.requestClosePrice(marketAddress);
-                    this.state.lastActions!.closeRequestedAt = Date.now();
-                    this.state.lastActions!.closeTxHash = closeHash;
-                    this.state.nextCloseAt = null;
-                    this.log(`Round settled and rewards calculated. Tx: ${closeHash}`, `MARKET:${coinId.toUpperCase()}`, "SUCCESS");
-                    console.log("----------------------------------------------------------------------\n");
-                  } catch (closeErr) {
-                    this.handleError(closeErr, `MARKET:${coinId.toUpperCase()}`);
-                  }
-                }, options.closeAfterMs)
-              );
+        // Step 4: Request Lock Price
+        this.log(`Betting timer complete. Requesting lock price from Somnia Agents...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
+        const lockHash = await this.requestLockPrice(marketAddress, targetEpoch);
+        this.state.lastActions.lockRequestedAt = Date.now();
+        this.state.lastActions.lockTxHash = lockHash;
+        this.state.nextLockAt = null;
+        this.log(`Lock price successfully requested. Tx: ${lockHash}`, `MARKET:${coinId.toUpperCase()}`, "SUCCESS");
 
-            } catch (lockErr) {
-              this.handleError(lockErr, `MARKET:${coinId.toUpperCase()}`);
-            }
-          }, options.lockAfterMs)
-        );
+        // Step 5: Wait out the Locked Phase Window
+        this.state.nextCloseAt = Date.now() + options.closeAfterMs;
+        this.log(`Locked window running. Round settlement scheduled in ${options.closeAfterMs / 60000}m`, "SCHEDULER", "INFO");
+        await delay(options.closeAfterMs);
+
+        if (!this.isRunningInternal) break;
+
+        // Step 6: Request Close Price & Settle Round
+        this.log(`Locked interval completed. Pulling final settlement price...`, `MARKET:${coinId.toUpperCase()}`, "INFO");
+        const closeHash = await this.requestClosePrice(marketAddress, targetEpoch);
+        this.state.lastActions.closeRequestedAt = Date.now();
+        this.state.lastActions.closeTxHash = closeHash;
+        this.state.nextCloseAt = null;
+        this.log(`Round settled and rewards calculated. Tx: ${closeHash}`, `MARKET:${coinId.toUpperCase()}`, "SUCCESS");
+
+        // Step 7: 1-Minute Grace Hold Break (Completely resolves nonce conflicts)
+        const graceDelayMs = 60 * 1000; 
+        this.state.nextCreateAt = Date.now() + graceDelayMs;
+        this.log(`Ensuring clean transaction completion. Pausing engine for 1 minute...`, "GRACE-HOLD", "WARN");
+        console.log("----------------------------------------------------------------------\n");
+        await delay(graceDelayMs);
 
       } catch (e) {
-        this.handleError(e, "LIFECYCLE");
+        this.handleError(e, "PIPELINE_CRASH");
+        this.log("Waiting 15 seconds before trying next cycle to recover...", "RECOVERY", "WARN");
+        await delay(15000); 
       } finally {
-        this.state.nextCreateAt = Date.now() + options.createEveryMs;
         this.busy = false;
       }
-    };
-
-    this.intervalId = setInterval(() => void tick(), 2_000);
-    void tick();
+    }
   }
 
   private handleError(err: unknown, context: string) {
@@ -253,7 +233,7 @@ export class MarketService {
   }
 
   private async createMarket(): Promise<{ marketAddress: Address; coinId: string; txHash: Hash }> {
-    const { publicClient, walletClient, factoryAddress } = this.clients();
+    const { publicClient, walletClient, factoryAddress, account } = this.clients();
 
     const coin = COINS[Math.floor(Math.random() * COINS.length)];
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -262,17 +242,18 @@ export class MarketService {
 
     this.log(`Deploying PredictionMarket instance for tracking ${coin.symbol}...`, "FACTORY", "INFO");
 
+    const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
+
     const txHash = await walletClient.writeContract({
       address: factoryAddress,
       abi: PredictionMarketFactoryABI,
       functionName: "createMarket",
       args: [marketName, marketSymbol, coin.coinId],
+      nonce,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
     
-    // FIXED: Explicitly typed 'l' as an object shape containing an address property string
-    // to strictly prevent the "implicitly has an 'any' type" compiler crash.
     const log = receipt.logs.find((l: { address: string }) => 
       l.address.toLowerCase() === factoryAddress.toLowerCase()
     );
@@ -292,20 +273,23 @@ export class MarketService {
   }
 
   private async startRound(market: Address): Promise<Hash> {
-    const { publicClient, walletClient } = this.clients();
+    const { publicClient, walletClient, account } = this.clients();
+    const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
+    
     const txHash = await walletClient.writeContract({
       address: market,
       abi: PredictionMarketABI,
       functionName: "startRound",
+      nonce,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
     return txHash;
   }
 
-  private async requestLockPrice(market: Address): Promise<Hash> {
-    const { publicClient, walletClient } = this.clients();
-    const epoch = await publicClient.readContract({ address: market, abi: PredictionMarketABI, functionName: "currentEpoch" });
+  private async requestLockPrice(market: Address, epoch: bigint): Promise<Hash> {
+    const { publicClient, walletClient, account } = this.clients();
     const deposit = await publicClient.readContract({ address: market, abi: PredictionMarketABI, functionName: "REQUEST_DEPOSIT" });
+    const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
 
     const txHash = await walletClient.writeContract({
       address: market,
@@ -313,15 +297,16 @@ export class MarketService {
       functionName: "requestLockPrice",
       args: [epoch],
       value: deposit,
+      nonce,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
     return txHash;
   }
 
-  private async requestClosePrice(market: Address): Promise<Hash> {
-    const { publicClient, walletClient } = this.clients();
-    const epoch = await publicClient.readContract({ address: market, abi: PredictionMarketABI, functionName: "currentEpoch" });
+  private async requestClosePrice(market: Address, epoch: bigint): Promise<Hash> {
+    const { publicClient, walletClient, account } = this.clients();
     const deposit = await publicClient.readContract({ address: market, abi: PredictionMarketABI, functionName: "REQUEST_DEPOSIT" });
+    const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
 
     const txHash = await walletClient.writeContract({
       address: market,
@@ -329,6 +314,7 @@ export class MarketService {
       functionName: "requestClosePrice",
       args: [epoch],
       value: deposit,
+      nonce,
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
     return txHash;

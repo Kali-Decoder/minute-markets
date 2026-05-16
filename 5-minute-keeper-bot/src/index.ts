@@ -1,13 +1,17 @@
-import express from "express";
-import cors from "cors"; // ✅ Import CORS
 import * as dotenv from "dotenv";
+// FIXED: dotenv.config() MUST run first so process.env variables are 
+// fully parsed before the marketService module initializes its clients.
+dotenv.config(); 
+
+import express from "express";
+import cors from "cors";
 import marketRouter from "./routes/marketRoutes";
 import { marketService } from "./service/marketService";
-dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ✅ FIXED: Removed the trailing slash from the Netlify production domain origin string
+// Allow your frontend app domain to query this API securely
 app.use(cors({
   origin: ["http://localhost:3000", "https://minute-markets.netlify.app"],
   methods: ["GET", "POST"],
@@ -24,7 +28,7 @@ app.get("/health", (req, res) => {
 app.listen(PORT, () => {
     console.log(`🌐 Server listening securely on port ${PORT}`);
     
-    // ✅ AUTOMATICALLY START ON BOOT:
+    // AUTOMATICALLY START ON BOOT:
     const defaultIntervals = { 
       createEveryMs: 10 * 60_000, 
       lockAfterMs: 5 * 60_000, 

@@ -7,9 +7,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ✅ Allow your frontend app domain to query this API securely
+// ✅ FIXED: Removed the trailing slash from the Netlify production domain origin string
 app.use(cors({
-  origin: ["http://localhost:3000", "https://minute-markets.netlify.app/"],
+  origin: ["http://localhost:3000", "https://minute-markets.netlify.app"],
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type", "x-admin-token"]
 }));
@@ -20,6 +20,7 @@ app.use("/api/market-service", marketRouter);
 app.get("/health", (req, res) => {
     res.status(200).send("OK");
 });
+
 app.listen(PORT, () => {
     console.log(`🌐 Server listening securely on port ${PORT}`);
     
@@ -31,4 +32,4 @@ app.listen(PORT, () => {
     };
     
     marketService.start(defaultIntervals);
-  });
+});

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Search, Menu, X } from "lucide-react";
-// import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { WalletConnect } from "./WalletConnect";
 import { BrandLogo } from "./BrandLogo";
 import { useAccount } from "wagmi";
@@ -59,7 +58,7 @@ export function Navbar() {
           {/* Nav Links (Desktop) */}
           <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-400">
             <Link href="/markets" className="hover:text-white transition-colors duration-200 flex items-center gap-2 hover:-translate-y-px">
-              5 Minute Markets
+              Minute Markets
             </Link>
             <Link href="/rewards" className="hover:text-white transition-colors duration-200 flex items-center gap-2 hover:-translate-y-px">
               Rewards

@@ -292,7 +292,7 @@ export default function MarketDetailPage() {
           </div>
         </div>
         <p className="text-sm text-gray-400 mt-3">
-          Contract Balance: {typeof balanceRaw === "bigint" ? `${formatEther(balanceRaw)} ETH` : "—"}
+          Contract Balance: {typeof balanceRaw === "bigint" ? `${formatEther(balanceRaw)} STT` : "—"}
         </p>
       </div>
 
@@ -309,9 +309,9 @@ export default function MarketDetailPage() {
                   label="Status"
                   value={`${ROUND_STATUS_LABEL[currentRound.status] ?? "UNKNOWN"} (${String(currentRound.status)})`}
                 />
-                <Stat label="Total Pool" value={`${formatEther(currentRound.totalPool)} ETH`} />
-                <Stat label="Up Pool" value={`${formatEther(currentRound.upPool)} ETH`} />
-                <Stat label="Down Pool" value={`${formatEther(currentRound.downPool)} ETH`} />
+                <Stat label="Total Pool" value={`${formatEther(currentRound.totalPool)} STT`} />
+                <Stat label="Up Pool" value={`${formatEther(currentRound.upPool)} STT`} />
+                <Stat label="Down Pool" value={`${formatEther(currentRound.downPool)} STT`} />
                 <Stat label="Odds" value={`UP ${odds.up} / DOWN ${odds.down}`} />
                 <Stat label="Start Time" value={fmtTs(currentRound.startTimestamp)} />
                 <Stat label="Lock Time" value={fmtTs(currentRound.startTimestamp)} />
@@ -365,7 +365,7 @@ export default function MarketDetailPage() {
                 <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
                   <span>Odds History</span>
                   <span className="text-gray-500">
-                    Pool: {formatEther(currentRound.upPool)} / {formatEther(currentRound.downPool)} ETH
+                    Pool: {formatEther(currentRound.upPool)} / {formatEther(currentRound.downPool)} STT
                   </span>
                 </div>
                 <MarketOddsHistoryChart series={oddsSeries} yesLabel="UP" noLabel="DOWN" />
@@ -375,7 +375,7 @@ export default function MarketDetailPage() {
 
           <div className="mt-6">
             <label className="block">
-              <span className="text-xs text-gray-400">Bet amount (ETH)</span>
+              <span className="text-xs text-gray-400">Bet amount (STT)</span>
               <input
                 value={amountEth}
                 onChange={(e) => setAmountEth(e.target.value)}
@@ -412,10 +412,10 @@ export default function MarketDetailPage() {
             <>
               <Stat label="Epoch" value={currentEpoch ? currentEpoch.toString() : "—"} />
               <Stat label="Side" value={userBet ? (userBet.position === 0 ? "UP" : userBet.position === 1 ? "DOWN" : String(userBet.position)) : "—"} />
-              <Stat label="Amount" value={userBet ? `${formatEther(userBet.amount)} ETH` : "—"} />
+              <Stat label="Amount" value={userBet ? `${formatEther(userBet.amount)} STT` : "—"} />
               <Stat label="Result" value={userBet ? positionResult : "—"} />
               <Stat label="Claimed" value={userBet ? (userBet.claimed ? "Yes" : "No") : "—"} />
-              <Stat label="Claimable" value={userBet ? `${formatEther(claimable)} ETH` : "—"} />
+              <Stat label="Claimable" value={userBet ? `${formatEther(claimable)} STT` : "—"} />
               <button
                 onClick={doClaimCurrent}
                 disabled={!userBet || userBet.claimed || claimable === 0n || claim.isPending || claim.isConfirming}

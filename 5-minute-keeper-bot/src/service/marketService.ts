@@ -48,6 +48,12 @@ export class MarketService {
   private timeouts: ReturnType<typeof setTimeout>[] = [];
   private busy = false;
 
+  // FIXED: Single instance client placeholders to persist transaction state and nonces
+  private cachedPublicClient: any = null;
+  private cachedWalletClient: any = null;
+  private cachedAccount: any = null;
+  private factoryAddress: Address | null = null;
+
   private state: ServiceState = {
     running: false,
     lastError: null,
@@ -64,12 +70,48 @@ export class MarketService {
     },
   };
 
+  constructor() {
+    // FIXED: Initialize cryptographic and web3 communication configurations safely upon boot
+    this.initClients();
+  }
+
   // Standardized administrative logger
   private log(message: string, context = "SYSTEM", level: "INFO" | "WARN" | "SUCCESS" | "ERROR" = "INFO") {
-    // Fetches your local machine's timezone clock formatted cleanly
     const timestamp = new Date().toLocaleString("sv-SE", { timeZoneName: "short" }).replace(" ", " ");
     const icons = { INFO: "ℹ️", WARN: "⚠️", SUCCESS: "✅", ERROR: "🚨" };
     console.log(`[${timestamp}] [${context}] ${icons[level]} ${message}`);
+  }
+
+  // FIXED: Consolidated client generator logic to persist nonce states throughout class lifecycles
+  private initClients() {
+    try {
+      const rpcUrl = process.env.SOMNIA_RPC_URL || "https://dream-rpc.somnia.network/";
+      const pk = process.env.MARKET_SERVICE_ADMIN_PRIVATE_KEY;
+      if (!pk) throw new Error("Missing MARKET_SERVICE_ADMIN_PRIVATE_KEY env variable.");
+      
+      this.cachedAccount = privateKeyToAccount(pk as `0x${string}`);
+      this.cachedPublicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
+      this.cachedWalletClient = createWalletClient({ 
+        chain: somniaTestnet, 
+        transport: http(rpcUrl), 
+        account: this.cachedAccount 
+      });
+      this.factoryAddress = getPredictionMarketFactoryAddress(somniaTestnet.id);
+    } catch (err) {
+      this.handleError(err, "INITIALIZATION");
+    }
+  }
+
+  private clients() {
+    if (!this.cachedWalletClient || !this.cachedPublicClient || !this.factoryAddress) {
+      this.initClients();
+    }
+    return { 
+      publicClient: this.cachedPublicClient, 
+      walletClient: this.cachedWalletClient, 
+      account: this.cachedAccount, 
+      factoryAddress: this.factoryAddress! 
+    };
   }
 
   getState(): ServiceState {
@@ -208,19 +250,6 @@ export class MarketService {
     const msg = err instanceof Error ? err.message : String(err);
     this.log(`Operation halted due to error: ${msg}`, context, "ERROR");
     this.state.lastError = msg;
-  }
-
-  private clients() {
-    const rpcUrl = process.env.SOMNIA_RPC_URL || "https://dream-rpc.somnia.network/";
-    const pk = process.env.MARKET_SERVICE_ADMIN_PRIVATE_KEY;
-    if (!pk) throw new Error("Missing MARKET_SERVICE_ADMIN_PRIVATE_KEY env variable.");
-    
-    const account = privateKeyToAccount(pk as `0x${string}`);
-    const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
-    const walletClient = createWalletClient({ chain: somniaTestnet, transport: http(rpcUrl), account });
-    const factoryAddress = getPredictionMarketFactoryAddress(somniaTestnet.id);
-
-    return { publicClient, walletClient, account, factoryAddress };
   }
 
   private async createMarket(): Promise<{ marketAddress: Address; coinId: string; txHash: Hash }> {

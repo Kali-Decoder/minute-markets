@@ -294,7 +294,7 @@ export function PredictionMarketCard({
                   </div>
                   <div className="text-gray-300 sm:text-right">
                     <div className="text-gray-400">Prize Pool:</div>
-                    <div className="mt-1 font-semibold tabular-nums">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} ETH` : "—"}</div>
+                    <div className="mt-1 font-semibold tabular-nums">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} STT` : "—"}</div>
                   </div>
                 </div>
               </div>
@@ -389,7 +389,7 @@ export function PredictionMarketCard({
         <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
           <div className="text-[11px] text-gray-400">Prize Pool</div>
           <div className="mt-1 flex items-baseline justify-between gap-3">
-            <div className="text-white font-semibold">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} ETH` : "—"}</div>
+            <div className="text-white font-semibold">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} STT` : "—"}</div>
             <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-300">{symbol}</span>
           </div>
 

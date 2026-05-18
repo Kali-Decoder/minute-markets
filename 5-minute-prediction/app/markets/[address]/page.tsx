@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Layers, Wallet, RefreshCw, Calendar, ShieldCheck, HelpCircle, Flame, Coins } from "lucide-react";
 import { formatEther, formatUnits, parseEther, type Address } from "viem";
 import { useAccount } from "wagmi";
 import {
@@ -30,7 +30,7 @@ function asAddress(value: string | string[] | undefined): Address | undefined {
 function formatPct(numerator: bigint, denominator: bigint): string {
   if (denominator === 0n) return "0%";
   const pct = Number((numerator * 10_000n) / denominator) / 100;
-  return `${pct.toFixed(2)}%`;
+  return `${pct.toFixed(1)}%`;
 }
 
 const ROUND_STATUS_LABEL: Record<number, string> = {
@@ -46,14 +46,15 @@ function fmtTs(ts?: bigint): string {
   if (typeof ts !== "bigint" || ts === 0n) return "—";
   const date = new Date(Number(ts) * 1000);
   if (Number.isNaN(date.getTime())) return ts.toString();
-  return date.toLocaleString();
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function fmtPrice(price?: bigint): string {
-  if (typeof price !== "bigint") return "—";
+  if (typeof price !== "bigint" || price === 0n) return "—";
   if (!Number.isFinite(PRICE_DECIMALS)) return price.toString();
   try {
-    return `${formatUnits(price, PRICE_DECIMALS)} (raw ${price.toString()})`;
+    const parsed = Number(formatUnits(price, PRICE_DECIMALS));
+    return `$${parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
   } catch {
     return price.toString();
   }
@@ -108,63 +109,69 @@ export default function MarketDetailPage() {
     const m = (fromMarketSymbol || "").trim().match(/^[A-Za-z]{2,6}/)?.[0];
     return m ? m.toUpperCase() : null;
   }, [coinId, meta.marketSymbol.data]);
+
   const betState = useMemo(() => {
-    if (!currentRound) return { canBet: false, reason: "Round not loaded yet." };
-    if (currentRound.epoch === 0n) return { canBet: false, reason: "Round not started yet (owner must call startRound)." };
-    if (currentRound.closePrice !== 0n) return { canBet: false, reason: "Round ended." };
+    if (!currentRound) return { canBet: false, reason: "Round synchronization pending..." };
+    if (currentRound.epoch === 0n) return { canBet: false, reason: "First epoch uninstantiated. Launch genesis round." };
+    if (currentRound.closePrice !== 0n) return { canBet: false, reason: "Active prediction period settled." };
     const now = BigInt(Math.floor(Date.now() / 1000));
     if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) {
-      return { canBet: false, reason: "Round locked." };
+      return { canBet: false, reason: "Time parameters elapsed. Waiting for oracle settlement." };
     }
     return { canBet: true, reason: null as string | null };
   }, [currentRound]);
 
-  const odds = useMemo(() => {
-    if (!currentRound) return { up: "0%", down: "0%" };
+  // Clean numerical representations for accurate rendering splits
+  const { oddsUpPct, oddsDownPct, upPctNum, downPctNum } = useMemo(() => {
+    if (!currentRound) return { oddsUpPct: "50%", oddsDownPct: "50%", upPctNum: 50, downPctNum: 50 };
     const total = currentRound.upPool + currentRound.downPool;
+    if (total === 0n) return { oddsUpPct: "50%", oddsDownPct: "50%", upPctNum: 50, downPctNum: 50 };
+    
+    const upNum = Number((currentRound.upPool * 10000n) / total) / 100;
+    const downNum = Number((currentRound.downPool * 10000n) / total) / 100;
     return {
-      up: formatPct(currentRound.upPool, total),
-      down: formatPct(currentRound.downPool, total),
+      oddsUpPct: `${upNum.toFixed(1)}%`,
+      oddsDownPct: `${downNum.toFixed(1)}%`,
+      upPctNum: upNum,
+      downPctNum: downNum
     };
   }, [currentRound]);
 
   const [oddsSeries, setOddsSeries] = useState<OddsPoint[]>([]);
 
+  // Smooth out line trends by capturing active states without structural mutations
   useEffect(() => {
     if (!currentRound) return;
-    const up = Number(formatEther(currentRound.upPool));
-    const down = Number(formatEther(currentRound.downPool));
-    const total = up + down;
-    const yes = total > 0 ? (up / total) * 100 : 0;
-    const no = total > 0 ? (down / total) * 100 : 0;
-    const point: OddsPoint = { t: Date.now(), yes, no };
+    const point: OddsPoint = { 
+      t: Date.now(), 
+      yes: upPctNum, 
+      no: downPctNum 
+    };
     setOddsSeries((prev) => {
-      const next = [...prev, point];
-      return next.slice(-20_000);
+      // Prevent duplicating data entries on the precise same timestamp frame
+      if (prev.length > 0 && Math.abs(prev[prev.length - 1].t - point.t) < 1000) {
+        return prev;
+      }
+      return [...prev, point].slice(-60); 
     });
-  }, [currentRound]);
+  }, [upPctNum, downPctNum, currentRound?.epoch]);
 
   useEffect(() => {
     if (!market) return;
     const id = setInterval(() => {
       void refetchRound();
-    }, 5_000);
+    }, 5000);
     return () => clearInterval(id);
   }, [market, refetchRound]);
 
   const claimable = useMemo(() => {
     if (!currentRound || !userBet) return 0n;
     if (userBet.claimed) return 0n;
-
-    if (currentRound.status === 3) {
-      return userBet.amount ?? 0n;
-    }
-
+    if (currentRound.status === 3) return userBet.amount ?? 0n;
     if (currentRound.status !== 2) return 0n;
 
     const userWon =
       (currentRound.upWon && userBet.position === 0) || (!currentRound.upWon && userBet.position === 1);
-
     if (!userWon) return 0n;
 
     const winnerPool = currentRound.upWon ? currentRound.upPool : currentRound.downPool;
@@ -174,17 +181,17 @@ export default function MarketDetailPage() {
   }, [currentRound, userBet]);
 
   const positionResult = useMemo(() => {
-    if (!userBet) return "—";
+    if (!userBet || userBet.amount === 0n) return "No active position";
     if (!currentRound) return "—";
 
-    if (currentRound.status === 0) return "Pending (LIVE)";
-    if (currentRound.status === 1) return "Pending (LOCKED)";
-    if (currentRound.status === 3) return "Cancelled (Refund)";
-    if (currentRound.status !== 2) return `Pending (STATUS ${currentRound.status})`;
+    if (currentRound.status === 0) return "Live Active Stage";
+    if (currentRound.status === 1) return "Locked Stage";
+    if (currentRound.status === 3) return "Cancelled (Refund Active)";
+    if (currentRound.status !== 2) return `Awaiting State Resolution`;
 
     const userWon =
       (currentRound.upWon && userBet.position === 0) || (!currentRound.upWon && userBet.position === 1);
-    return userWon ? "Win" : "Loss";
+    return userWon ? "🏆 Winner" : "Lose";
   }, [currentRound, userBet]);
 
   const doRefetchAll = async () => {
@@ -220,228 +227,424 @@ export default function MarketDetailPage() {
   const doBet = async (direction: "UP" | "DOWN") => {
     setActionError(null);
     try {
-      if (!currentRound) throw new Error("Round not loaded yet.");
-      if (currentRound.epoch === 0n) throw new Error("Round not started yet (owner must call startRound).");
-      // FIXED: Added an explicit runtime check to reassure the TypeScript compiler 
-      // that currentEpoch can never pass forward as "undefined"
-      if (!currentEpoch) throw new Error("Current epoch not available.");
-      if (currentRound.status !== 0) throw new Error(`Round not live (${ROUND_STATUS_LABEL[currentRound.status] ?? currentRound.status}).`);
+      if (!currentRound) throw new Error("Round details syncing. Retry momentarily.");
+      if (currentRound.epoch === 0n) throw new Error("Launch parameters unverified by administrator node.");
+      if (!currentEpoch) throw new Error("Target epoch state pointer missing.");
+      if (currentRound.status !== 0) throw new Error(`Round pool deposits are closed.`);
       
       const now = BigInt(Math.floor(Date.now() / 1000));
-      if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) throw new Error("Round locked.");
+      if (currentRound.closeTimestamp !== 0n && now >= currentRound.closeTimestamp) throw new Error("Lock execution threshold exceeded.");
       
       const value = parseEther(amountEth || "0");
-      if (value <= 0n) throw new Error("Bet amount must be greater than 0.");
+      if (value <= 0n) throw new Error("Input minimum valid threshold allocation.");
       
       if (direction === "UP") await betUp.betUp({ epoch: currentEpoch, value });
       else await betDown.betDown({ epoch: currentEpoch, value });
       await doRefetchAll();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Bet failed.");
+      setActionError(e instanceof Error ? e.message : "Broadcast validation error.");
     }
   };
 
   const doClaimCurrent = async () => {
     setActionError(null);
     try {
-      if (!currentEpoch) throw new Error("Current epoch not available yet.");
+      if (!currentEpoch) throw new Error("Epoch index pointer missing.");
       await claim.claim([currentEpoch]);
       await doRefetchAll();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Claim failed.");
+      setActionError(e instanceof Error ? e.message : "Settlement pipeline execution error.");
     }
   };
 
   if (!market) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 pb-16">
-        <Link href="/markets" className="inline-flex items-center gap-2 text-gray-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Markets
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-12 text-center">
+        <Link href="/markets" className="inline-flex items-center gap-2 text-xs font-bold tracking-wider text-gray-400 uppercase bg-white/5 border border-white/10 px-4 py-2 rounded-xl mb-6">
+          <ArrowLeft className="h-4 w-4" /> Back to Arenas
         </Link>
-        <p className="text-red-300 mt-6">Invalid market address.</p>
+        <div className="p-8 border border-rose-500/10 bg-rose-500/[0.02] rounded-2xl max-w-md mx-auto text-rose-400 font-bold">
+          Malformed or invalid smart contract target path.
+        </div>
       </div>
     );
   }
 
+  const liveBadgeTheme = currentRound?.status === 0 
+    ? "border-purple-500/30 bg-purple-500/10 text-purple-400"
+    : currentRound?.status === 1
+    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+    : "border-white/10 bg-white/5 text-gray-400";
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-16">
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <Link href="/markets" className="inline-flex items-center gap-2 text-gray-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Markets
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-20 selection:bg-purple-500/30">
+      
+      {/* Top Breadcrumb Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <Link href="/markets" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 hover:text-white bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 shadow-sm transition-all w-fit">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Prediction Markets
         </Link>
-        <span className="text-[11px] text-gray-500 truncate">{market}</span>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 mb-5">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-2xl border border-white/10 bg-black/20 flex items-center justify-center flex-none p-0.5">
-            <TokenAvatar symbol={derivedSymbol} coinId={coinId} size={36} className="ring-0 shadow-none" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">
-              {typeof meta.marketName.data === "string" ? meta.marketName.data : "Market"}
-              {typeof meta.marketSymbol.data === "string" && meta.marketSymbol.data ? (
-                <span className="ml-2 text-base text-gray-400">({meta.marketSymbol.data})</span>
-              ) : null}
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Coin ID: {coinId ?? "—"}
-            </p>
-          </div>
+        <div className="text-[10px] font-mono font-semibold bg-black/40 text-gray-500 px-3 py-1 rounded-xl border border-white/5 max-w-full truncate select-all">
+          Contract: <span className="text-gray-400">{market}</span>
         </div>
-        <p className="text-sm text-gray-400 mt-3">
-          Contract Balance: {typeof balanceRaw === "bigint" ? `${formatEther(balanceRaw)} STT` : "—"}
-        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
-          <h2 className="text-white font-semibold mb-4">Current Round</h2>
-          {isRoundLoading && <p className="text-gray-400">Loading…</p>}
-          {!isRoundLoading && !currentRound && <p className="text-gray-400">No round data.</p>}
-          {currentRound && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Stat label="Epoch" value={currentRound.epoch.toString()} />
-                <Stat
-                  label="Status"
-                  value={`${ROUND_STATUS_LABEL[currentRound.status] ?? "UNKNOWN"} (${String(currentRound.status)})`}
-                />
-                <Stat label="Total Pool" value={`${formatEther(currentRound.totalPool)} STT`} />
-                <Stat label="Up Pool" value={`${formatEther(currentRound.upPool)} STT`} />
-                <Stat label="Down Pool" value={`${formatEther(currentRound.downPool)} STT`} />
-                <Stat label="Odds" value={`UP ${odds.up} / DOWN ${odds.down}`} />
-                <Stat label="Start Time" value={fmtTs(currentRound.startTimestamp)} />
-                <Stat label="Lock Time" value={fmtTs(currentRound.startTimestamp)} />
-                <Stat label="Close Time" value={fmtTs(currentRound.closeTimestamp)} />
-                <Stat label="Lock Price" value={fmtPrice(currentRound.lockPrice)} />
-                <Stat label="Close Price" value={fmtPrice(currentRound.closePrice)} />
-                <Stat label="Up Won" value={currentRound.status === 2 ? (currentRound.upWon ? "Yes" : "No") : "—"} />
-              </div>
-
-              {!betState.canBet && betState.reason ? (
-                <p className="mt-4 text-sm text-yellow-200/90">{betState.reason}</p>
-              ) : null}
-
-              {currentRound.epoch === 0n && isOwner ? (
-                <div className="mt-4">
-                  <button
-                    onClick={doStartRound}
-                    disabled={startRoundTx.isPending || startRoundTx.isConfirming}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white font-semibold hover:border-monad-purple/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {startRoundTx.isPending || startRoundTx.isConfirming ? "Starting round…" : "Start Round (Admin)"}
-                  </button>
-                  <p className="mt-2 text-[11px] text-gray-500">
-                    Only the market owner can start the first round.
-                  </p>
-                </div>
-              ) : null}
-
-              {isOwner && currentRound.epoch !== 0n ? (
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <button
-                    onClick={doRequestClose}
-                    disabled={
-                      closeTx.isPending ||
-                      closeTx.isConfirming ||
-                      currentRound.lockPrice === 0n ||
-                      currentRound.closePrice !== 0n ||
-                      BigInt(Math.floor(Date.now() / 1000)) < currentRound.closeTimestamp
-                    }
-                    className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-blue-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {closeTx.isPending || closeTx.isConfirming ? "Requesting close…" : "Request Close Price (Admin)"}
-                  </button>
-                  <p className="text-[11px] text-gray-500">
-                    Lock price is fetched automatically when <span className="text-gray-300">startRound()</span> is called. Close enabled after lock is received and close time.
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-                  <span>Odds History</span>
-                  <span className="text-gray-500">
-                    Pool: {formatEther(currentRound.upPool)} / {formatEther(currentRound.downPool)} STT
+      {/* Main Asset Summary Jumbotron Panel */}
+      <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0f0f1d] to-[#06060c] p-6 mb-6 shadow-xl relative overflow-hidden group">
+        <div className="absolute inset-0 bg-radial-gradient from-purple-500/[0.01] to-transparent pointer-events-none" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="h-12 w-12 rounded-xl border border-white/10 bg-black/40 flex items-center justify-center flex-none p-1 shadow-inner relative overflow-hidden">
+              <TokenAvatar symbol={derivedSymbol} coinId={coinId} size={40} className="ring-0" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-black text-white tracking-tight truncate">
+                  {typeof meta.marketName.data === "string" ? meta.marketName.data : "Prediction Arena"}
+                </h1>
+                {typeof meta.marketSymbol.data === "string" && meta.marketSymbol.data && (
+                  <span className="text-xs font-mono font-extrabold bg-white/5 px-2 py-0.5 rounded border border-white/5 text-gray-400 uppercase tracking-tight">
+                    {meta.marketSymbol.data}
                   </span>
-                </div>
-                <MarketOddsHistoryChart series={oddsSeries} yesLabel="UP" noLabel="DOWN" />
+                )}
               </div>
-            </>
-          )}
-
-          <div className="mt-6">
-            <label className="block">
-              <span className="text-xs text-gray-400">Bet amount (STT)</span>
-              <input
-                value={amountEth}
-                onChange={(e) => setAmountEth(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-monad-purple/50"
-                placeholder="0.01"
-              />
-            </label>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-              <button
-                onClick={() => doBet("UP")}
-                disabled={!isConnected || !betState.canBet || betUp.isPending || betUp.isConfirming}
-                className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-green-200 font-semibold disabled:opacity-50"
-              >
-                {betUp.isPending || betUp.isConfirming ? "Betting…" : "Bet UP"}
-              </button>
-              <button
-                onClick={() => doBet("DOWN")}
-                disabled={!isConnected || !betState.canBet || betDown.isPending || betDown.isConfirming}
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-200 font-semibold disabled:opacity-50"
-              >
-                {betDown.isPending || betDown.isConfirming ? "Betting…" : "Bet DOWN"}
-              </button>
+              <p className="text-xs text-gray-500 font-medium mt-0.5 flex items-center gap-1.5 uppercase tracking-wide">
+                Oracle Stream Identifier: <span className="text-gray-400 font-mono font-bold normal-case">{coinId ?? "—"}</span>
+              </p>
             </div>
           </div>
 
-          {actionError && <p className="text-sm text-red-300 mt-3">{actionError}</p>}
+          <div className="flex items-center gap-6 bg-black/30 border border-white/5 rounded-xl p-3 sm:px-4 shadow-inner h-fit sm:self-center">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-purple-400" />
+              <div>
+                <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Liquidity Pool Available</div>
+                <div className="text-base font-black text-white tabular-nums tracking-tight">
+                  {typeof balanceRaw === "bigint" ? `${Number(formatEther(balanceRaw)).toLocaleString(undefined, { maximumFractionDigits: 4 })} STT` : "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Execution Layout Split Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        
+        {/* Left Columns (Span 2): Live Metrics & Real-time Distribution Wave Chart */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0c0c16] to-[#040409] p-5 sm:p-6 shadow-md">
+            
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.04] mb-4">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-purple-400" />
+                <h2 className="text-white font-black tracking-tight text-sm uppercase tracking-wide">Live Stream Frame Monitor</h2>
+              </div>
+              {currentRound && (
+                <span className={`text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded border uppercase flex items-center gap-1 shadow-sm ${liveBadgeTheme}`}>
+                  <span className={`h-1 w-1 rounded-full ${currentRound.status === 0 ? 'bg-purple-400 animate-pulse' : 'bg-gray-500'}`} />
+                  {ROUND_STATUS_LABEL[currentRound.status] ?? "SYNCING"}
+                </span>
+              )}
+            </div>
+
+            {isRoundLoading && (
+              <div className="py-20 text-center font-medium text-xs text-gray-500 animate-pulse">
+                Querying block logs for contract indices...
+              </div>
+            )}
+            
+            {!isRoundLoading && !currentRound && (
+              <div className="py-16 text-center text-xs font-semibold text-gray-500 italic">
+                No active epoch parameters returned from smart contract state.
+              </div>
+            )}
+
+            {currentRound && (
+              <div className="space-y-6">
+                {/* Stats Matrix */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <StatItem label="Active Epoch" value={`#${currentRound.epoch.toString()}`} isHighlight />
+                  <StatItem label="Total Deposited" value={`${Number(formatEther(currentRound.totalPool)).toLocaleString(undefined, { maximumFractionDigits: 2 })} STT`} />
+                  <StatItem label="Directional Odds Weight" value={`UP ${oddsUpPct} • DOWN ${oddsDownPct}`} />
+                  
+                  <StatItem 
+                    label="UP Pool Allocation" 
+                    value={`${Number(formatEther(currentRound.upPool)).toLocaleString(undefined, { maximumFractionDigits: 2 })} STT`} 
+                    icon={<TrendingUp className="h-3 w-3 text-emerald-400 inline ml-1" />}
+                  />
+                  <StatItem 
+                    label="DOWN Pool Allocation" 
+                    value={`${Number(formatEther(currentRound.downPool)).toLocaleString(undefined, { maximumFractionDigits: 2 })} STT`} 
+                    icon={<TrendingDown className="h-3 w-3 text-rose-400 inline ml-1" />}
+                  />
+                  <StatItem 
+                    label="Round Settlement Outcome" 
+                    value={currentRound.status === 2 ? (currentRound.upWon ? "🟩 UP WON" : "🟥 DOWN WON") : "Awaiting Settlement"} 
+                  />
+                </div>
+
+                {/* Percentage Distribution Progress Visual Indicator */}
+                <div className="space-y-1.5 bg-black/20 border border-white/[0.03] p-3.5 rounded-xl">
+                  <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <span className="text-emerald-400 flex items-center gap-1">▲ UP Volume ({oddsUpPct})</span>
+                    <span className="text-rose-400 flex items-center gap-1">DOWN Volume ({oddsDownPct}) ▼</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden flex shadow-inner">
+                    <div 
+                      className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
+                      style={{ width: `${upPctNum}%` }}
+                    />
+                    <div 
+                      className="h-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500 ease-out"
+                      style={{ width: `${downPctNum}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Clock parameter row card */}
+                <div className="rounded-xl border border-white/[0.03] bg-black/20 p-3.5 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Round Start</div>
+                    <div className="text-xs font-bold text-gray-300 font-mono mt-0.5">{fmtTs(currentRound.startTimestamp)}</div>
+                  </div>
+                  <div className="border-x border-white/[0.04]">
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Lock Target</div>
+                    <div className="text-xs font-bold text-gray-300 font-mono mt-0.5">{fmtTs(currentRound.startTimestamp)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Expiration Close</div>
+                    <div className="text-xs font-bold text-gray-300 font-mono mt-0.5">{fmtTs(currentRound.closeTimestamp)}</div>
+                  </div>
+                </div>
+
+                {/* Oracle Pricing Parameters Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.01] p-3 shadow-sm">
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Lock Target Oracle Value</div>
+                    <div className="text-lg font-black tracking-tight font-mono text-gray-200 mt-0.5">{fmtPrice(currentRound.lockPrice)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.01] p-3 shadow-sm">
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Settle Output Oracle Value</div>
+                    <div className="text-lg font-black tracking-tight font-mono text-gray-200 mt-0.5">{fmtPrice(currentRound.closePrice)}</div>
+                  </div>
+                </div>
+
+                {/* Admin Management Interface (Conditional) */}
+                {isOwner && (
+                  <div className="border border-purple-500/10 bg-purple-500/[0.01] rounded-xl p-4 space-y-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-purple-300">Administrative Orchestrator Nodes Only</span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
+                      {currentRound.epoch === 0n && (
+                        <button
+                          onClick={doStartRound}
+                          disabled={startRoundTx.isPending || startRoundTx.isConfirming}
+                          className="flex-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 tracking-wide shadow-md transition-all disabled:opacity-40"
+                        >
+                          {startRoundTx.isPending || startRoundTx.isConfirming ? "Broadcasting Initialization..." : "Execute Genesis Round"}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={doRequestClose}
+                        disabled={
+                          closeTx.isPending ||
+                          closeTx.isConfirming ||
+                          currentRound.lockPrice === 0n ||
+                          currentRound.closePrice !== 0n ||
+                          BigInt(Math.floor(Date.now() / 1000)) < currentRound.closeTimestamp
+                        }
+                        className="flex-1 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold text-xs py-2.5 tracking-wide transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                      >
+                        {closeTx.isPending || closeTx.isConfirming ? "Pulling Oracle Verification..." : "Broadcast Close Price Sync Request"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Real-Time Line Graph Block Container */}
+                <div className="rounded-xl border border-white/5 bg-black/30 p-4">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-white/[0.03]">
+                    <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-purple-400" /> Pool Distribution Wave Trend</span>
+                    <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-white/[0.02] text-gray-400 text-[9px]">
+                      Historical Trend Wave Tracker
+                    </span>
+                  </div>
+                  {/* Fixed graph alignment container utilizing full aspect bounds */}
+                  <div className="h-[220px] w-full bg-black/20 rounded-lg overflow-hidden relative border border-white/[0.02]">
+                    <div className="absolute inset-0 p-3 pr-4 pt-4">
+                      <MarketOddsHistoryChart series={oddsSeries} yesLabel="UP Pool %" noLabel="DOWN Pool %" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
-          <h2 className="text-white font-semibold mb-4">Your Position</h2>
-          {!isConnected && <p className="text-gray-400 text-sm">Connect wallet to see your bet.</p>}
-          {isConnected && (
-            <>
-              <Stat label="Epoch" value={currentEpoch ? currentEpoch.toString() : "—"} />
-              <Stat label="Side" value={userBet ? (userBet.position === 0 ? "UP" : userBet.position === 1 ? "DOWN" : String(userBet.position)) : "—"} />
-              <Stat label="Amount" value={userBet ? `${formatEther(userBet.amount)} STT` : "—"} />
-              <Stat label="Result" value={userBet ? positionResult : "—"} />
-              <Stat label="Claimed" value={userBet ? (userBet.claimed ? "Yes" : "No") : "—"} />
-              <Stat label="Claimable" value={userBet ? `${formatEther(claimable)} STT` : "—"} />
-              <button
-                onClick={doClaimCurrent}
-                disabled={!userBet || userBet.claimed || claimable === 0n || claim.isPending || claim.isConfirming}
-                className="mt-4 w-full rounded-xl bg-monad-purple px-4 py-3 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {claim.isPending || claim.isConfirming ? "Claiming…" : "Claim (Current Epoch)"}
-              </button>
+        {/* Right Columns (Span 1): Input Deck, Bidding Actions & Personal Positions */}
+        <div className="space-y-6">
+          
+          {/* 1. PLACE BET MODULE */}
+          <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0c0c16] to-[#040409] p-5 sm:p-6 shadow-md">
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.04] mb-4">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-purple-400" />
+                <h2 className="text-white font-black tracking-tight text-sm uppercase tracking-wide">Place Arena Position</h2>
+              </div>
               <button
                 onClick={doRefetchAll}
-                className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white font-semibold hover:border-monad-purple/40"
+                className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-all shadow-sm"
+                title="Force update rates"
               >
-                Refresh
+                <RefreshCw className="h-3.5 w-3.5" />
               </button>
-            </>
-          )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Allocation Capital (STT)</span>
+                  {!betState.canBet && betState.reason && (
+                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/5 border border-amber-500/10 px-2 py-0.5 rounded">
+                      Bidding Paused
+                    </span>
+                  )}
+                </div>
+                
+                <div className="relative mt-1">
+                  <input
+                    type="number"
+                    value={amountEth}
+                    onChange={(e) => setAmountEth(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white font-bold font-mono outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/10 transition-all placeholder:text-gray-700 shadow-inner"
+                    placeholder="0.01"
+                    min="0"
+                    step="0.01"
+                    disabled={!betState.canBet}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-black text-gray-500">STT</span>
+                </div>
+              </div>
+
+              {/* Directional Action Submission Track */}
+              <div className="flex flex-col gap-2.5 pt-1">
+                <button
+                  onClick={() => doBet("UP")}
+                  disabled={!isConnected || !betState.canBet || betUp.isPending || betUp.isConfirming}
+                  className="w-full rounded-xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/20 to-emerald-500/[0.02] hover:from-emerald-500/25 py-3 text-emerald-400 text-xs font-black tracking-widest uppercase shadow-md transition-all active:scale-[0.99] disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  {betUp.isPending || betUp.isConfirming ? "Processing call..." : "Predict Market UP"}
+                </button>
+                <button
+                  onClick={() => doBet("DOWN")}
+                  disabled={!isConnected || !betState.canBet || betDown.isPending || betDown.isConfirming}
+                  className="w-full rounded-xl border border-rose-500/30 bg-gradient-to-b from-rose-500/20 to-rose-500/[0.02] hover:from-rose-500/25 py-3 text-rose-400 text-xs font-black tracking-widest uppercase shadow-md transition-all active:scale-[0.99] disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  <TrendingDown className="h-4 w-4" />
+                  {betDown.isPending || betDown.isConfirming ? "Processing put..." : "Predict Market DOWN"}
+                </button>
+              </div>
+
+              {/* Localized notification text for bet block state triggers */}
+              {!betState.canBet && betState.reason && (
+                <div className="text-[10px] bg-amber-500/5 border border-amber-500/10 text-amber-400 p-2.5 rounded-lg leading-relaxed font-medium">
+                  {betState.reason}
+                </div>
+              )}
+
+              {actionError && (
+                <div className="text-xs font-semibold text-rose-400 bg-rose-500/5 border border-rose-500/10 px-3 py-2.5 rounded-xl">
+                  Error: {actionError}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. ACCOUNT PORTFOLIO MODULE */}
+          <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0c0c16] to-[#040409] p-5 sm:p-6 shadow-md">
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.04] mb-4">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-purple-400" />
+                <h2 className="text-white font-black tracking-tight text-sm uppercase tracking-wide">Account Portfolio Position</h2>
+              </div>
+            </div>
+
+            {!isConnected ? (
+              <div className="py-12 text-center border border-dashed border-white/10 rounded-xl p-4 bg-black/10">
+                <HelpCircle className="h-5 w-5 text-gray-600 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-gray-400">Web3 Signature Nodes Disconnected</p>
+                <p className="text-[10px] text-gray-500 mt-1">Connect your wallet account profile to index position records.</p>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <PositionStatItem label="Active Epoch Pointer" value={currentEpoch ? `#${currentEpoch.toString()}` : "—"} />
+                  <PositionStatItem 
+                    label="Direction Pool Side" 
+                    value={userBet && userBet.amount > 0n ? (userBet.position === 0 ? "🟩 UP" : "🟥 DOWN") : "—"} 
+                  />
+                </div>
+
+                <PositionStatItem 
+                  label="Allocated Capital Principal" 
+                  value={userBet && userBet.amount > 0n ? `${Number(formatEther(userBet.amount)).toLocaleString()} STT` : "—"} 
+                />
+                <PositionStatItem label="Position Execution Result" value={positionResult} />
+                
+                <div className="grid grid-cols-2 gap-2.5">
+                  <PositionStatItem label="Settlement Claimed" value={userBet && userBet.amount > 0n ? (userBet.claimed ? "Completed" : "Unclaimed") : "—"} />
+                  <PositionStatItem 
+                    label="Claimable Redemptions" 
+                    value={`${Number(formatEther(claimable)).toLocaleString()} STT`} 
+                    isVibrant={claimable > 0n} 
+                  />
+                </div>
+
+                <button
+                  onClick={doClaimCurrent}
+                  disabled={!userBet || userBet.claimed || claimable === 0n || claim.isPending || claim.isConfirming}
+                  className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-[0.99] text-white text-xs font-black tracking-widest uppercase py-3.5 shadow-lg shadow-purple-600/10 disabled:opacity-25 disabled:cursor-not-allowed disabled:active:scale-100 transition-all mt-2"
+                >
+                  {claim.isPending || claim.isConfirming ? "Broadcasting Settlement Proof..." : "Execute Settle Claim Redemption"}
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/* ==================== SUB-COMPONENTS FOR LAYOUT UNIFORMITY ==================== */
+
+function StatItem({ label, value, isHighlight = false, icon = null }: { label: string; value: string; isHighlight?: boolean; icon?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-      <p className="text-[10px] text-gray-400">{label}</p>
-      <p className="text-sm text-white font-medium mt-1 truncate">{value}</p>
+    <div className="rounded-xl border border-white/[0.03] bg-white/[0.01] p-3 shadow-inner">
+      <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500">{label}</p>
+      <p className={`text-sm tracking-tight font-black mt-1 truncate ${isHighlight ? 'text-purple-400 font-mono' : 'text-gray-200'}`}>
+        {value}
+        {icon}
+      </p>
+    </div>
+  );
+}
+
+function PositionStatItem({ label, value, isVibrant = false }: { label: string; value: string; isVibrant?: boolean }) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/40 p-3 shadow-inner">
+      <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500">{label}</p>
+      <p className={`text-xs font-extrabold mt-0.5 truncate ${isVibrant ? 'text-emerald-400 font-mono text-sm' : 'text-gray-300'}`}>
+        {value}
+      </p>
     </div>
   );
 }

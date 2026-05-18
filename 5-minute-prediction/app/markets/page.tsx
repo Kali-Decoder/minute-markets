@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, HelpCircle, History, Trophy, X, Sparkles, Activity } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useChainId, usePublicClient } from "wagmi";
@@ -56,11 +56,15 @@ function formatCountdown(ms: number): string {
   return `${m}m ${s}s`;
 }
 
-function LaunchStep({ label, value }: { label: string; value: string }) {
+function LaunchStep({ label, value, isActive }: { label: string; value: string; isActive?: boolean }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-      <div className="text-[11px] text-gray-400 font-semibold">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white tabular-nums">{value}</div>
+    <div className={`rounded-xl border p-3.5 transition-all duration-300 ${
+      isActive 
+        ? "border-purple-500/30 bg-purple-500/10 shadow-[0_0_15px_rgba(139,92,246,0.1)]" 
+        : "border-white/5 bg-white/[0.02]"
+    }`}>
+      <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">{label}</div>
+      <div className="mt-1 text-base font-black text-white tabular-nums tracking-tight">{value}</div>
     </div>
   );
 }
@@ -142,7 +146,7 @@ export default function MarketsPage() {
 
   const [serviceNow, setServiceNow] = useState(() => Date.now());
   useEffect(() => {
-    const tick = setInterval(() => setServiceNow(Date.now()), 1_000);
+    const tick = setInterval(() => setServiceNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
 
@@ -179,7 +183,7 @@ export default function MarketsPage() {
       });
       return (await res.json()) as ServiceState;
     },
-    refetchInterval: 3_000,
+    refetchInterval: 3000,
     staleTime: 0,
   });
 
@@ -320,292 +324,351 @@ export default function MarketsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16 selection:bg-purple-500/30 selection:text-white">
+      {/* Navigation Header */}
       <div className="flex items-center justify-between gap-3 mb-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-gray-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Home
+        <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold tracking-wider uppercase text-gray-400 hover:text-white transition-colors bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 shadow-sm">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back Home
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Prediction Markets</h1>
-        <div className="hidden sm:flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-            <span
-              className={[
-                "text-[10px] px-2 py-0.5 rounded-full border",
-                serviceState?.running
-                  ? "border-green-500/30 bg-green-500/10 text-green-300"
-                  : "border-white/10 bg-white/5 text-gray-300",
-              ].join(" ")}
-            >
-              {serviceState?.running ? "Launch Live" : "Launch Paused"}
+      {/* Page Title Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-gray-100 to-gray-400 bg-clip-text text-transparent">
+            Prediction Arenas
+          </h1>
+          <p className="text-xs text-gray-500 font-mono mt-1 flex items-center gap-1.5 select-none">
+            <span className="h-1.5 w-1.5 rounded-full bg-purple-500/50" />
+            Factory Address: <span className="text-gray-400 break-all">{factoryAddress ?? "Not configured for this chain"}</span>
+            {chainId !== somniaTestnet.id && <span className="text-rose-400 font-bold">(Switch to {somniaTestnet.name})</span>}
+          </p>
+        </div>
+
+        {/* Top Service Status indicator */}
+        <div className="flex sm:hidden items-center gap-2">
+          <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.01] px-3 py-2 w-full justify-between">
+            <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md border ${
+              serviceState?.running ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-white/10 bg-white/5 text-gray-400"
+            }`}>
+              {serviceState?.running ? "Engine Active" : "Engine Paused"}
             </span>
-            <span className="text-xs text-gray-300">
-              Next: <span className="text-white font-semibold tabular-nums">{nextLaunchIn ?? "—"}</span>
+            <span className="text-xs font-medium text-gray-400">
+              Next batch: <span className="text-white font-black tabular-nums">{nextLaunchIn ?? "—"}</span>
             </span>
           </div>
         </div>
       </div>
-      <p className="text-sm text-gray-400 mb-8">
-        Factory: {factoryAddress ?? "Not configured for this chain"} {chainId !== somniaTestnet.id ? `(switch to ${somniaTestnet.name})` : ""}
-      </p>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 mb-6">
-        <div className="flex items-center justify-between gap-3">
+      {/* Main Orchestrator Control Panel Card */}
+      <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0e0e1a] to-[#06060c] p-5 mb-8 shadow-[0_4px_30px_rgba(0,0,0,0.4)] relative overflow-hidden group">
+        <div className="absolute inset-0 bg-radial-gradient from-purple-500/[0.02] to-transparent pointer-events-none" />
+        <div className="flex items-center justify-between gap-3 relative z-10 pb-4 border-b border-white/[0.04]">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-monad-purple" />
-            <div className="text-white font-semibold">Next Market Launch</div>
+            <div className="h-8 w-8 rounded-xl bg-purple-500/10 border border-purple-500/20 inline-flex items-center justify-center shadow-inner">
+              <Clock className="h-4 w-4 text-purple-400" />
+            </div>
+            <div>
+              <div className="text-white font-black tracking-tight text-sm">Automated Launch Node</div>
+              <div className="text-[10px] text-gray-500 font-medium tracking-wide">Dynamic 5-minute oracle-backed cycle rounds</div>
+            </div>
           </div>
-          <span
-            className={[
-              "text-[10px] px-2 py-0.5 rounded-full border",
-              serviceState?.running ? "border-green-500/30 bg-green-500/10 text-green-300" : "border-white/10 bg-white/5 text-gray-300",
-            ].join(" ")}
-          >
-            {serviceState?.running ? "Live" : "Paused"}
+          <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-md border tracking-widest ${
+            serviceState?.running ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]" : "border-white/10 bg-white/5 text-gray-500"
+          }`}>
+            {serviceState?.running ? "Synchronized" : "Stalled"}
           </span>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="text-[12px] text-gray-400">Launching in</div>
-            <div className="text-3xl sm:text-4xl font-bold tracking-tight text-white mt-1 tabular-nums">
+            <div className="text-[10px] uppercase font-black text-gray-500 tracking-wider">Next Pipeline Generation In</div>
+            <div className="text-3xl font-black tracking-tight text-white mt-0.5 tabular-nums drop-shadow-sm bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
               {serviceState?.running ? nextLaunchIn ?? "—" : "00:00"}
             </div>
           </div>
+          
           {serviceState?.lastCreatedMarket ? (
-            <div className="text-xs text-gray-400">
-              Last: <span className="text-white">{serviceState.lastCreatedMarket.coinId}</span>{" "}
-              <span className="text-gray-500">•</span>{" "}
-              <span className="text-gray-300 font-mono">{serviceState.lastCreatedMarket.address}</span>
+            <div className="text-xs text-gray-400 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+                <span className="font-bold text-gray-300 uppercase tracking-wide">Latest Deploy:</span>
+              </div>
+              <span className="text-white font-black uppercase bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">{serviceState.lastCreatedMarket.coinId}</span>
+              <span className="text-gray-600 font-mono font-light">|</span>
+              <span className="text-gray-400 font-mono text-[11px] font-medium bg-black/20 px-2 py-0.5 rounded border border-white/[0.03]">{serviceState.lastCreatedMarket.address}</span>
             </div>
           ) : (
-            <div className="text-xs text-gray-500">No market created yet by the service.</div>
+            <div className="text-xs text-gray-500 font-medium italic">Waiting for initial state generation...</div>
           )}
         </div>
 
-        {serviceState?.lastError ? <div className="mt-2 text-xs text-red-300">Error: {serviceState.lastError}</div> : null}
+        {serviceState?.lastError && (
+          <div className="mt-3 text-xs font-semibold text-rose-400 bg-rose-500/5 border border-rose-500/10 px-3 py-2 rounded-xl flex items-center gap-2">
+            <X className="h-3.5 w-3.5 flex-none" /> Engine Log Exception: {serviceState.lastError}
+          </div>
+        )}
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <LaunchStep label="Create" value={serviceState?.running ? nextLaunchIn ?? "—" : "00:00"} />
-          <LaunchStep label="Lock" value={serviceState?.running ? "Auto" : "—"} />
-          <LaunchStep label="Close" value={serviceState?.running ? closeIn ?? "—" : "00:00"} />
+        {/* Horizontal Pipeline Steps */}
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+          <LaunchStep label="1. Deployment Queue" value={serviceState?.running ? nextLaunchIn ?? "—" : "00:00"} isActive={serviceState?.running} />
+          <LaunchStep label="2. Price Locking" value={serviceState?.running ? "Automatic Oracle Sync" : "—"} />
+          <LaunchStep label="3. Settling Window" value={serviceState?.running ? closeIn ?? "—" : "00:00"} />
         </div>
       </div>
 
+      {/* Control Navigation Filter Bar */}
       <div>
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 flex items-center gap-3">
-                <div className="text-emerald-200 font-semibold tabular-nums text-lg">
-                  {headerPriceLoading ? "—" : headerPriceUsd != null ? `$${headerPriceUsd.toFixed(4)}` : "—"}
-                </div>
-                <div className="flex items-center gap-2">
-                  <TokenAvatar symbol={headerSymbol} coinId={null} size={20} />
-                  <div className="text-xs text-gray-300 font-semibold tracking-wide">{headerSymbol}USD</div>
-                </div>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 bg-gradient-to-b from-white/[0.02] to-transparent border border-white/5 p-3 rounded-2xl shadow-inner backdrop-blur-md">
+          
+          {/* Left Block: Price Tracker & Asset Filters */}
+          <div className="flex flex-wrap items-center gap-3 min-w-0">
+            {/* Embedded Mini Live Asset Price Frame */}
+            <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 flex items-center gap-3 shadow-inner h-11">
+              <div className="flex items-center gap-1.5">
+                <TokenAvatar symbol={headerSymbol} coinId={null} size={18} />
+                <div className="text-[10px] text-gray-400 font-black tracking-wider uppercase">{headerSymbol}/USD</div>
               </div>
+              <div className="text-emerald-400 font-black tabular-nums text-sm tracking-tight">
+                {headerPriceLoading ? (
+                  <span className="text-xs font-normal text-gray-500 animate-pulse">Loading...</span>
+                ) : headerPriceUsd != null ? (
+                  `$${headerPriceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                ) : (
+                  "—"
+                )}
+              </div>
+            </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 flex items-center gap-2">
-                {([
-                  { key: "bitcoin", label: "BTC", symbol: "BTC" },
-                  { key: "ethereum", label: "ETH", symbol: "ETH" },
-                  { key: "solana", label: "SOL", symbol: "SOL" },
-                  { key: "somnia", label: "SOMI", symbol: "SOMI" },
-                ] as const).map((t) => (
+            {/* Asset Tab List Group */}
+            <div className="bg-black/30 border border-white/5 p-1 rounded-xl flex flex-wrap items-center gap-1">
+              {([
+                { key: "bitcoin", label: "BTC", symbol: "BTC" },
+                { key: "ethereum", label: "ETH", symbol: "ETH" },
+                { key: "solana", label: "SOL", symbol: "SOL" },
+                { key: "somnia", label: "SOMI", symbol: "SOMI" },
+              ] as const).map((t) => {
+                const isActive = tab === t.key;
+                const totalMarketsForTab = tabCounts[t.key] || 0;
+                const liveMarketsForTab = liveCounts[t.key] || 0;
+
+                return (
                   <button
                     key={t.key}
                     onClick={() => setTab(t.key)}
-                    className={[
-                      "h-10 px-3 rounded-xl border text-sm font-semibold duration-200 ease-out inline-flex items-center gap-2 active:scale-[0.97]",
-                      tab === t.key
-                        ? "border-monad-purple/50 bg-monad-purple/10 text-white"
-                        : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/30 hover:-translate-y-px",
-                    ].join(" ")}
+                    className={`h-9 px-3 rounded-lg text-xs font-black tracking-wide duration-200 ease-out flex items-center gap-2.5 transition-all relative ${
+                      isActive
+                        ? "bg-purple-600/15 border border-purple-500/30 text-white shadow-sm"
+                        : "border border-transparent text-gray-400 hover:text-white hover:bg-white/[0.02]"
+                    }`}
                     aria-label={`Filter ${t.label}`}
-                    title={t.label}
                   >
-                    <TokenAvatar symbol={t.symbol} coinId={null} size={18} className="ring-1 ring-white/15" />
-                    <span className="hidden sm:inline">{t.label}</span>
-                    <span
-                      className={[
-                        "ml-1 min-w-[1.5rem] h-5 px-2 inline-flex items-center justify-center rounded-full text-[11px] font-semibold border",
-                        tab === t.key ? "bg-monad-purple/20 text-white border-monad-purple/30" : "bg-white/5 text-gray-300 border-white/10",
-                      ].join(" ")}
-                      aria-label={`${tabCounts[t.key]} markets`}
-                    >
-                      {tabCounts[t.key]}
-                    </span>
+                    <TokenAvatar symbol={t.symbol} coinId={null} size={14} className="shadow-sm" />
+                    <span>{t.label}</span>
+                    
+                    {/* Metrics Counter Pill Badges */}
+                    <div className="flex items-center gap-1 ml-0.5">
+                      {/* Total Market Count Badge */}
+                      <span className={`h-4.5 px-1.5 inline-flex items-center justify-center rounded text-[9px] font-bold border font-mono ${
+                        isActive ? "bg-purple-500/20 text-purple-200 border-purple-500/20" : "bg-white/5 text-gray-500 border-white/5"
+                      }`}>
+                        {totalMarketsForTab}
+                      </span>
+
+                      {/* Live Market Counter Notification Badge */}
+                      {liveMarketsForTab > 0 && (
+                        <span className="h-4.5 px-1.5 inline-flex items-center justify-center rounded text-[9px] font-black font-mono border border-emerald-500/20 bg-emerald-500/15 text-emerald-400 relative overflow-hidden shadow-sm animate-none">
+                          <span className="absolute inset-0 bg-emerald-400/10 animate-pulse pointer-events-none" />
+                          {liveMarketsForTab}
+                        </span>
+                      )}
+                    </div>
                   </button>
-                ))}
-              </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Block: Actions, Filters, Utilities */}
+          <div className="flex items-center justify-between lg:justify-end gap-2.5 flex-wrap">
+            {/* Live-Only Filter Toggle Switch */}
+            <button
+              type="button"
+              onClick={() => setShowLiveOnly((v) => !v)}
+              className={`h-9 px-3 rounded-xl border text-xs font-black tracking-wider uppercase transition-all duration-200 flex items-center gap-2 shadow-sm ${
+                showLiveOnly
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/10"
+                  : "border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20"
+              }`}
+              title="Show active live rounds only"
+            >
+              <Sparkles className={`h-3.5 w-3.5 ${showLiveOnly ? "text-emerald-400 fill-emerald-400/20 animate-spin-slow" : "text-gray-400"}`} />
+              <span>Live Only</span>
+              <span className="h-5 px-1.5 inline-flex items-center justify-center rounded-lg text-[10px] font-black border border-white/5 bg-black/30 text-gray-400 font-mono">
+                {liveCounts[tab]}
+              </span>
+            </button>
+
+            <div className="h-4 w-px bg-white/10 hidden sm:block" />
+
+            {/* Dashboard Control Buttons */}
+            <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-xl border border-white/5">
+              <button
+                className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5 inline-flex items-center justify-center transition-all"
+                title="Help Guide"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+              <button
+                className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5 inline-flex items-center justify-center transition-all"
+                title="Global Leaderboards"
+              >
+                <Trophy className="h-4 w-4" />
+              </button>
+              <button
+                className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5 inline-flex items-center justify-center transition-all"
+                title="Account Round History"
+              >
+                <History className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="hidden md:flex items-center gap-2">
+            {/* Horizontal Deck Sliders */}
+            <div className="hidden lg:flex items-center gap-1">
               <button
                 onClick={() => scrollByCards("left")}
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 hover:-translate-y-px active:scale-95 inline-flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none"
+                className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-white/20 inline-flex items-center justify-center transition-all"
                 aria-label="Scroll left"
-                title="Scroll left"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => scrollByCards("right")}
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 hover:-translate-y-px active:scale-95 inline-flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none"
+                className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-white/20 inline-flex items-center justify-center transition-all"
                 aria-label="Scroll right"
-                title="Scroll right"
               >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowLiveOnly((v) => !v)}
-                className={[
-                  "h-10 px-3 rounded-xl border text-sm font-semibold transition-colors inline-flex items-center gap-2",
-                  showLiveOnly
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                    : "border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40",
-                ].join(" ")}
-                aria-label="Toggle live filter"
-                title="Show live markets only"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="hidden sm:inline">Live</span>
-                <span className="min-w-[1.5rem] h-5 px-2 inline-flex items-center justify-center rounded-full text-[11px] font-semibold border border-white/10 bg-black/20 text-gray-200 tabular-nums">
-                  {liveCounts[tab]}
-                </span>
-              </button>
-              <button
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
-                aria-label="Help"
-                title="Help"
-              >
-                <HelpCircle className="h-5 w-5" />
-              </button>
-              <button
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
-                aria-label="Leaderboard"
-                title="Leaderboard"
-              >
-                <Trophy className="h-5 w-5" />
-              </button>
-              <button
-                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center"
-                aria-label="History"
-                title="History"
-              >
-                <History className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
+        </div>
 
-          {isLoading && <p className="text-gray-400">Loading markets…</p>}
-          {error && <p className="text-red-300">Failed to load markets.</p>}
-          {!isLoading && !error && markets.length === 0 && <p className="text-gray-400">No markets created yet.</p>}
-
-          <div className="relative isolate">
-            <div
-              ref={scrollRef}
-              className="flex w-full max-w-full gap-4 overflow-x-scroll pb-4 snap-x snap-mandatory scroll-smooth scroll-pl-[max(1rem,calc(50%-11.875rem))] scroll-pr-[max(1rem,calc(50%-11.875rem))]"
-              style={{ WebkitOverflowScrolling: "touch" }}
-            >
-              {marketsNewestFirst.map((m) => (
-                <MarketCardFromFactory
-                  key={m}
-                  market={m}
-                  tab={tab}
-                  showLiveOnly={showLiveOnly}
-                  nowMs={serviceNow}
-                  onMeta={handleMarketMeta}
-                  sharingAddress={sharingAddress}
-                  onShare={handleShareSnapshot}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                scrollByCards("left");
-              }}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center pointer-events-auto"
-              aria-label="Scroll markets left"
-              title="Scroll left"
-              type="button"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                scrollByCards("right");
-              }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-xl border border-white/10 bg-black/40 backdrop-blur text-gray-200 hover:text-white hover:border-monad-purple/40 inline-flex items-center justify-center pointer-events-auto"
-              aria-label="Scroll markets right"
-              title="Scroll right"
-              type="button"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
+        {/* Empty States / Loading fallbacks */}
+        {isLoading && (
+          <div className="py-20 text-center rounded-2xl border border-white/5 bg-white/[0.01] flex flex-col items-center justify-center gap-3">
+            <Activity className="h-6 w-6 text-purple-400 animate-pulse" />
+            <p className="text-sm font-medium text-gray-400 animate-pulse">Querying Somnia block structure indices...</p>
           </div>
+        )}
+        {error && (
+          <div className="py-12 text-center rounded-2xl border border-rose-500/10 bg-rose-500/[0.02] p-6">
+            <p className="text-sm font-bold text-rose-400">Failed to pull market records from factory.</p>
+            <p className="text-xs text-gray-500 mt-1 font-mono">Verify RPC client connectivity status or network forks.</p>
+          </div>
+        )}
+        {!isLoading && !error && markets.length === 0 && (
+          <div className="py-16 text-center rounded-2xl border border-white/5 bg-white/[0.01] p-8">
+            <p className="text-sm font-bold text-gray-400">No matching market targets instantiated.</p>
+            <p className="text-xs text-gray-500 mt-1">Initialize market targets via deployment client or wait for pipeline engine tick.</p>
+          </div>
+        )}
+
+        {/* Carousel Window Track */}
+        <div className="relative isolate">
+          <div
+            ref={scrollRef}
+            className="flex w-full max-w-full gap-4 overflow-x-scroll pb-6 snap-x snap-mandatory scroll-smooth scroll-pl-[max(1rem,calc(50%-11.875rem))] scroll-pr-[max(1rem,calc(50%-11.875rem))] no-scrollbar"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {marketsNewestFirst.map((m) => (
+              <MarketCardFromFactory
+                key={m}
+                market={m}
+                tab={tab}
+                showLiveOnly={showLiveOnly}
+                nowMs={serviceNow}
+                onMeta={handleMarketMeta}
+                sharingAddress={sharingAddress}
+                onShare={handleShareSnapshot}
+              />
+            ))}
+          </div>
+
+          {/* Floated Edge Carousel Navigation Arrows */}
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollByCards("left"); }}
+            className="absolute left-2 top-[44%] -translate-y-1/2 z-20 h-9 w-9 rounded-xl border border-white/10 bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:border-purple-500/40 inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            type="button"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollByCards("right"); }}
+            className="absolute right-2 top-[44%] -translate-y-1/2 z-20 h-9 w-9 rounded-xl border border-white/10 bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:border-purple-500/40 inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            type="button"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
+      {/* Market Creation Modal Window Frame */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0b0b14] p-5 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold text-lg">Create Market</h2>
-              <button onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="h-5 w-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-[#0e0e18] to-[#06060c] p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-white/5">
+              <div>
+                <h2 className="text-white font-black text-lg tracking-tight">Deploy Prediction Arena</h2>
+                <div className="text-[11px] text-gray-500 mt-0.5">Instantiate factory custom parameters</div>
+              </div>
+              <button onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-white bg-white/5 h-7 w-7 rounded-lg border border-white/5 flex items-center justify-center transition-all">
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <label className="block">
-                <span className="text-xs text-gray-400">Market Name</span>
+                <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400">Market Title Name</span>
                 <input
                   value={form.marketName}
                   onChange={(e) => setForm((f) => ({ ...f, marketName: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-monad-purple/50"
-                  placeholder="e.g. BTC 5m"
+                  className="mt-1.5 w-full rounded-xl border border-white/5 bg-black/40 px-3.5 py-2.5 text-sm text-white font-medium outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                  placeholder="e.g. BTC 5m Turbo"
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-gray-400">Market Symbol</span>
+                <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400">Market Ticker Symbol</span>
                 <input
                   value={form.marketSymbol}
                   onChange={(e) => setForm((f) => ({ ...f, marketSymbol: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-monad-purple/50"
-                  placeholder="e.g. BTC5M"
+                  className="mt-1.5 w-full rounded-xl border border-white/5 bg-black/40 px-3.5 py-2.5 text-sm text-white font-medium outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                  placeholder="e.g. BTC-5M"
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-gray-400">Coin ID</span>
+                <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400">Target Coin ID</span>
                 <input
                   value={form.coinId}
                   onChange={(e) => setForm((f) => ({ ...f, coinId: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-monad-purple/50"
+                  className="mt-1.5 w-full rounded-xl border border-white/5 bg-black/40 px-3.5 py-2.5 text-sm text-white font-medium outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/10 transition-all placeholder:text-gray-600 shadow-inner"
                   placeholder="e.g. bitcoin"
                 />
               </label>
             </div>
 
-            {createError && <p className="text-sm text-red-300 mt-3">{createError}</p>}
+            {createError && (
+              <p className="text-xs font-semibold text-rose-400 mt-4 bg-rose-500/5 border border-rose-500/10 px-3 py-2 rounded-xl">
+                {createError}
+              </p>
+            )}
 
             <button
               onClick={handleCreate}
               disabled={isCreating || isConfirming || !canCreate}
-              className="mt-5 w-full rounded-xl bg-monad-purple px-4 py-3 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-6 w-full rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-[0.99] text-white text-sm font-black tracking-wide py-3.5 shadow-lg shadow-purple-600/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 transition-all"
             >
-              {isCreating || isConfirming ? "Creating…" : "Create"}
+              {isCreating || isConfirming ? "Confirming Execution Pipeline..." : "Broadcast Launch Transaction"}
             </button>
           </div>
         </div>
@@ -711,7 +774,7 @@ function MarketCardFromFactory({
     return (
       <PredictionMarketCard
         address={addr ?? (market as Address)}
-        name="Loading…"
+        name="Loading Arena Metadata…"
         symbol=""
         coinId=""
         roundStatus={typeof round?.status === "number" ? round.status : undefined}

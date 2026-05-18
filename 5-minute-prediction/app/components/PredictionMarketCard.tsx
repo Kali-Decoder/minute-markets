@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { formatUnits } from "viem";
-import { Clock, ExternalLink, Share2 } from "lucide-react";
+import { Clock, ExternalLink, Share2, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import { somniaTestnet } from "@/app/config/chains";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
 import { TokenAvatar } from "@/app/components/TokenAvatar";
@@ -184,7 +184,7 @@ export function PredictionMarketCard({
           e.stopPropagation();
           onShareClick();
         }}
-        className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150 disabled:opacity-40"
+        className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 hover:border-monad-purple/40 transition-all duration-150 disabled:opacity-40"
         aria-label="Share layout snapshot"
         title="Share to Twitter"
       >
@@ -193,53 +193,66 @@ export function PredictionMarketCard({
     );
   };
 
+  /* ==================== 1. COMING SOON STATE ==================== */
   if (isComingSoon) {
     return (
       <Link
         href={`/markets/${address}`}
         data-market-card
         data-market-address={address.toLowerCase()}
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden hover:border-monad-purple/40 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_-14px_rgba(135,109,255,0.22)]"
+        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f0f1c] to-[#07070d] backdrop-blur-md transition-all duration-300 ease-out overflow-hidden hover:border-white/20 hover:-translate-y-1 shadow-[0_4px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_20px_50px_-12px_rgba(255,255,255,0.05)] group"
       >
-        <div className="px-4 py-4 bg-black/20 border-b border-white/10">
+        <div className="px-4 py-4 bg-white/[0.02] border-b border-white/5">
           <div className="flex items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-2 text-[14px] font-semibold tracking-wide text-white/90">
-              <span className="h-8 w-8 rounded-full border border-white/15 bg-white/5 inline-flex items-center justify-center">
-                <Clock className="h-4 w-4 text-white/90" />
+            <span className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <span className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 inline-flex items-center justify-center shadow-inner">
+                <Clock className="h-3.5 w-3.5 text-gray-400 group-hover:rotate-12 transition-transform duration-300" />
               </span>
-              Later
+              Coming Soon
             </span>
             <div className="flex items-center gap-2">
-              {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
+              {typeof roundEpoch === "bigint" ? (
+                <span className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded-md font-mono tracking-tight border border-white/[0.03]">
+                  #{roundEpoch.toString()}
+                </span>
+              ) : null}
               {renderShareButton()}
             </div>
           </div>
         </div>
 
-        <div className="relative p-4">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={22} />
-            <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ?? coinId}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-10 text-center">
-            <div className="text-xl sm:text-2xl font-bold text-white">Entry starts</div>
-            <div className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-white tabular-nums">{entryStartsIn ?? "—"}</div>
+        <div className="relative p-5">
+          <div className="flex items-center justify-center gap-2 mb-4 bg-white/[0.02] border border-white/5 py-1.5 px-3 rounded-full w-fit mx-auto shadow-sm">
+            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={18} />
+            <div className="text-xs text-gray-300 font-bold tracking-wide">{coinSymbol ?? coinId}</div>
           </div>
 
-          <div className="mt-3 text-[11px] text-gray-500 font-mono truncate">{address}</div>
+          <div className="rounded-xl border border-white/5 bg-gradient-to-b from-black/40 to-black/20 p-8 text-center shadow-inner relative overflow-hidden">
+            <div className="absolute inset-0 bg-radial-gradient from-white/[0.02] to-transparent pointer-events-none" />
+            <div className="text-xs uppercase tracking-widest font-semibold text-gray-400/80">Entry starts in</div>
+            <div className="mt-2 text-4xl font-black tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent tabular-nums drop-shadow-sm">
+              {entryStartsIn ?? "—"}
+            </div>
+          </div>
+
+          <div className="mt-4 text-[10px] text-gray-600 font-mono truncate text-center select-none tracking-tight">{address}</div>
         </div>
       </Link>
     );
   }
 
+  /* ==================== 2. EXPIRED / ENDED STATE ==================== */
   if (isEnded) {
-    const winnerColor =
-      winnerSide === "UP"
-        ? "border-emerald-400/60 bg-emerald-400/10"
-        : winnerSide === "DOWN"
-          ? "border-pink-400/60 bg-pink-400/10"
-          : "border-white/15 bg-white/5";
-    const loserText = loserSide === "UP" ? "text-emerald-200/70" : loserSide === "DOWN" ? "text-pink-200/70" : "text-gray-400";
+    const isUpWinner = winnerSide === "UP";
+    const winnerGlowColor = isUpWinner 
+      ? "hover:shadow-[0_20px_50px_-12px_rgba(16,185,129,0.15)] hover:border-emerald-500/30" 
+      : "hover:shadow-[0_20px_50px_-12px_rgba(244,63,94,0.15)] hover:border-rose-500/30";
+
+    const winnerBadgeClass = isUpWinner
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+      : "border-rose-500/30 bg-rose-500/10 text-rose-400";
+
+    const loserText = loserSide === "UP" ? "text-emerald-500/60" : loserSide === "DOWN" ? "text-rose-500/60" : "text-gray-500";
     const deltaIsUp = typeof deltaUsd === "number" ? deltaUsd > 0 : null;
 
     return (
@@ -247,23 +260,25 @@ export function PredictionMarketCard({
         href={`/markets/${address}`}
         data-market-card
         data-market-address={address.toLowerCase()}
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden opacity-75 hover:opacity-100 hover:border-monad-purple/40 hover:-translate-y-0.5"
+        className={`flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/5 bg-gradient-to-b from-[#090910] to-[#040408] transition-all duration-300 ease-out overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.5)] ${winnerGlowColor} group`}
       >
-        <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
+        <div className="px-4 pt-3.5 pb-2.5 bg-white/[0.01] border-b border-white/5">
           <div className="flex items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-2 text-[12px] font-semibold tracking-wide text-gray-400">
-              <span className="h-4 w-4 rounded-full border border-white/15 bg-white/5 inline-flex items-center justify-center text-[10px] leading-none">
-                ⦸
-              </span>
-              Expired
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-wider text-gray-500 uppercase">
+              <span className="h-2 w-2 rounded-full bg-gray-600" />
+              Settled
             </span>
             <div className="flex items-center gap-2">
-              {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
+              {typeof roundEpoch === "bigint" ? (
+                <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-md font-mono border border-white/[0.03]">
+                  #{roundEpoch.toString()}
+                </span>
+              ) : null}
               {renderShareButton()}
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}
-                className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-150"
                 aria-label="Open in explorer"
                 title="Open in explorer"
               >
@@ -274,113 +289,141 @@ export function PredictionMarketCard({
         </div>
 
         <div className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={22} />
-            <div className="text-[12px] text-gray-400 font-semibold">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
+          <div className="flex items-center gap-2 mb-3 bg-white/[0.01] py-1 px-2.5 rounded-lg border border-white/[0.03] w-fit">
+            <TokenAvatar symbol={coinSymbol} coinId={coinId} size={18} />
+            <div className="text-xs text-gray-400 font-bold tracking-wider">{coinSymbol ? `${coinSymbol}/USD` : coinId}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
-            <div className="px-4 pt-4 pb-3 text-center">
-              <div className={["text-lg font-extrabold tracking-wide", loserText].join(" ")}>{loserSide ?? "—"}</div>
-              <div className="text-sm text-gray-400 font-semibold">{loserPayout != null ? `${loserPayout.toFixed(2)}x Payout` : "—"}</div>
+
+          <div className="rounded-xl border border-white/5 bg-black/40 overflow-hidden shadow-inner">
+            {/* Loser Side Overview */}
+            <div className="px-4 pt-3.5 pb-2 flex justify-between items-center bg-white/[0.01] border-b border-white/[0.03]">
+              <div className="flex items-center gap-1.5">
+                {loserSide === "UP" ? <TrendingUp className="h-3 w-3 text-emerald-600/70" /> : <TrendingDown className="h-3 w-3 text-rose-600/70" />}
+                <div className={`text-xs font-bold tracking-wide uppercase ${loserText}`}>{loserSide ?? "—"} Pool</div>
+              </div>
+              <div className="text-xs text-gray-500 font-mono font-medium">{loserPayout != null ? `${loserPayout.toFixed(2)}x` : "—"}</div>
             </div>
 
-            <div className="px-4 pb-4">
-              <div className={["rounded-2xl border p-4", winnerColor].join(" ")}>
-                <div className="text-[12px] font-semibold text-gray-400 tracking-wide">CLOSED PRICE</div>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[28px] sm:text-3xl leading-none font-extrabold tabular-nums text-emerald-200 truncate">
-                      {closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}
-                    </div>
+            {/* Winning Result Core */}
+            <div className="p-3.5">
+              <div className={`rounded-xl border p-4 transition-all bg-gradient-to-b from-white/[0.02] to-transparent ${winnerBadgeClass}`}>
+                <div className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Closed Price</div>
+                <div className="mt-1 flex items-baseline justify-between gap-3 flex-wrap">
+                  <div className="text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-white drop-shadow-sm">
+                    {closeUsd != null ? `$${closeUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—"}
                   </div>
                   <div
-                    className={[
-                      "rounded-xl px-3 py-2 text-sm font-bold tabular-nums border whitespace-nowrap",
+                    className={`rounded-lg px-2.5 py-1 text-xs font-extrabold tabular-nums border flex items-center gap-1 shadow-sm ${
                       deltaUsd == null
-                        ? "border-white/10 bg-white/5 text-gray-300"
+                        ? "border-white/10 bg-white/5 text-gray-400"
                         : deltaIsUp
-                          ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
-                          : "border-pink-400/40 bg-pink-400/15 text-pink-100",
-                    ].join(" ")}
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                          : "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                    }`}
                   >
                     {deltaUsd == null ? "—" : `${deltaIsUp ? "↑" : "↓"} $${Math.abs(deltaUsd).toFixed(4)}`}
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div className="text-gray-300">
-                    <div className="text-gray-400">Locked Price:</div>
-                    <div className="mt-1 font-semibold tabular-nums text-emerald-100">{lockUsd != null ? `$${lockUsd.toFixed(4)}` : "—"}</div>
+                <div className="mt-5 pt-3 border-t border-white/[0.04] grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <div className="text-gray-500 font-medium">Locked Value:</div>
+                    <div className="mt-0.5 font-bold tabular-nums text-gray-300">
+                      {lockUsd != null ? `$${lockUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—"}
+                    </div>
                   </div>
-                  <div className="text-gray-300 sm:text-right">
-                    <div className="text-gray-400">Prize Pool:</div>
-                    <div className="mt-1 font-semibold tabular-nums">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} STT` : "—"}</div>
+                  <div className="text-right">
+                    <div className="text-gray-500 font-medium">Prize Pool:</div>
+                    <div className="mt-0.5 font-bold tabular-nums text-gray-200">
+                      {totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(3)} STT` : "—"}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4">
+              {/* Master Winner Banner */}
+              <div className="mt-3 relative">
                 <div
-                  className={[
-                    "w-full px-4 py-3 text-center font-extrabold tracking-wide rounded-2xl border",
-                    winnerSide === "UP"
-                      ? "border-emerald-400/50 bg-emerald-400/20 text-emerald-100"
+                  className={`w-full px-4 py-2.5 text-center font-black tracking-widest rounded-xl border relative shadow-md transition-all ${
+                    isUpWinner
+                      ? "border-emerald-500/40 bg-gradient-to-b from-emerald-500/20 to-emerald-500/[0.02] text-emerald-400"
                       : winnerSide === "DOWN"
-                        ? "border-pink-400/50 bg-pink-400/20 text-pink-100"
-                        : "border-white/10 bg-white/5 text-gray-200",
-                  ].join(" ")}
-                  style={{ clipPath: "polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%)" }}
+                        ? "border-rose-500/40 bg-gradient-to-b from-rose-500/20 to-rose-500/[0.02] text-rose-400"
+                        : "border-white/10 bg-white/5 text-gray-400"
+                  }`}
+                  style={{ clipPath: "polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%)" }}
                 >
-                  <div className="text-sm">{winnerPayout != null ? `${winnerPayout.toFixed(2)}x Payout` : "—"}</div>
-                  <div className="text-2xl leading-tight">{winnerSide ?? "—"}</div>
+                  <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">
+                    {winnerPayout != null ? `${winnerPayout.toFixed(2)}x Payout` : "—"}
+                  </div>
+                  <div className="text-xl font-black flex items-center justify-center gap-1">
+                    {isUpWinner ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                    {winnerSide ?? "—"} WIN
+                  </div>
                 </div>
+                <div className="h-3" /> {/* Padding for the arrow cutout */}
               </div>
             </div>
           </div>
 
-          <div className="mt-3 text-[11px] text-gray-500 font-mono truncate">{address}</div>
+          <div className="mt-3 text-[10px] text-gray-600 font-mono truncate text-center select-none tracking-tight">{address}</div>
         </div>
       </Link>
     );
   }
+
+  /* ==================== 3. LIVE & LOCKED CARD STATE ==================== */
+  const statusTheme = isLive 
+    ? { 
+        text: "text-purple-400", 
+        bg: "bg-purple-500/15", 
+        border: "border-purple-500/30", 
+        dot: "bg-purple-400 animate-pulse",
+        cardBorder: "border-purple-500/20 hover:border-purple-500/40 shadow-[0_4px_30px_rgba(139,92,246,0.05)] hover:shadow-[0_20px_50px_-12px_rgba(139,92,246,0.18)]" 
+      }
+    : isLocked 
+    ? { 
+        text: "text-amber-400", 
+        bg: "bg-amber-500/15", 
+        border: "border-amber-500/30", 
+        dot: "bg-amber-400",
+        cardBorder: "border-amber-500/20 hover:border-amber-500/40 shadow-[0_4px_30px_rgba(245,158,11,0.03)] hover:shadow-[0_20px_50px_-12px_rgba(245,158,11,0.12)]" 
+      }
+    : { 
+        text: "text-gray-400", 
+        bg: "bg-white/5", 
+        border: "border-white/10", 
+        dot: "bg-gray-400",
+        cardBorder: "border-white/10 hover:border-purple-500/30" 
+      };
 
   return (
     <Link
       href={`/markets/${address}`}
       data-market-card
       data-market-address={address.toLowerCase()}
-      className={[
-        "flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden",
-        isLive ? "border-monad-purple/40 hover:border-monad-purple/70 hover:-translate-y-0.5" : "border-white/10 hover:border-monad-purple/40 opacity-80 hover:opacity-100 hover:-translate-y-0.5",
-      ].join(" ")}
+      className={`flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-gradient-to-b from-[#0c0c16] to-[#05050a] transition-all duration-300 ease-out overflow-hidden backdrop-blur-md ${statusTheme.cardBorder}`}
     >
-      <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
+      {/* Top Section */}
+      <div className="px-4 pt-3.5 pb-3 bg-white/[0.01] border-b border-white/5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-              <span
-                className={[
-                  "inline-flex items-center gap-2 text-[12px] font-semibold tracking-wide",
-                  isLive ? "text-monad-purple" : isLocked ? "text-yellow-200" : "text-gray-400",
-                ].join(" ")}
-              >
-              <span
-                className={[
-                  "h-2 w-2 rounded-full",
-                  isLive ? "bg-monad-purple animate-pulse" : isLocked ? "bg-yellow-300" : "bg-gray-500",
-                ].join(" ")}
-              />
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-black tracking-widest px-2.5 py-0.5 rounded-md border uppercase ${statusTheme.text} ${statusTheme.bg} ${statusTheme.border}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${statusTheme.dot}`} />
               {displayStatus}
             </span>
           </div>
           <div className="flex items-center gap-2">
             {typeof roundEpoch === "bigint" ? (
-              <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span>
+              <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-md font-mono border border-white/[0.03]">
+                #{roundEpoch.toString()}
+              </span>
             ) : null}
             {renderShareButton()}
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-150"
               aria-label="Open in explorer"
               title="Open in explorer"
             >
@@ -389,55 +432,89 @@ export function PredictionMarketCard({
           </div>
         </div>
 
-        <div className="mt-3 flex items-end justify-between gap-3">
+        {/* Live Token Info Asset Bar */}
+        <div className="mt-4 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <TokenAvatar symbol={coinSymbol} coinId={coinId} size={18} className="flex-none" />
-              <div className="text-[11px] text-gray-400 truncate">{coinSymbol ? `${coinSymbol}USD` : coinId}</div>
+            <div className="flex items-center gap-1.5 min-w-0 mb-0.5">
+              <TokenAvatar symbol={coinSymbol} coinId={coinId} size={16} className="flex-none" />
+              <div className="text-[11px] text-gray-400 font-bold tracking-wider uppercase truncate">{coinSymbol ? `${coinSymbol}/USD` : coinId}</div>
             </div>
-            <div className="text-white text-base sm:text-lg font-semibold truncate">{name}</div>
+            <div className="text-white text-base font-extrabold tracking-tight truncate">{name}</div>
           </div>
           <div className="text-right">
-            <div className="text-[11px] text-gray-400">Last price</div>
-            <div className="text-emerald-200 font-semibold tabular-nums text-sm sm:text-base whitespace-nowrap">
-              {priceLoading ? "Price…" : currentPriceUsd != null ? `$${currentPriceUsd.toFixed(4)}` : "—"}
+            <div className="text-[10px] font-bold text-gray-500 tracking-wider uppercase">Live Price</div>
+            <div className="text-emerald-400 font-black tabular-nums text-base sm:text-lg whitespace-nowrap tracking-tight drop-shadow-[0_2px_10px_rgba(52,211,153,0.1)]">
+              {priceLoading ? (
+                <span className="text-xs text-gray-500 font-medium animate-pulse">Syncing...</span>
+              ) : currentPriceUsd != null ? (
+                `$${currentPriceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+              ) : (
+                "—"
+              )}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Internal Content Frame */}
       <div className="p-4">
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-          <div className="text-[11px] text-gray-400">Prize Pool</div>
-          <div className="mt-1 flex items-baseline justify-between gap-3">
-            <div className="text-white font-semibold">{totalPoolDisplay != null ? `${totalPoolDisplay.toFixed(4)} STT` : "—"}</div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-300">{symbol}</span>
+        <div className="rounded-xl border border-white/5 bg-gradient-to-b from-black/40 to-black/10 p-4 shadow-inner">
+          
+          {/* Main Prize Pool Row */}
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.04]">
+            <div>
+              <div className="text-[10px] font-bold text-gray-500 tracking-wider uppercase flex items-center gap-1">
+                <Layers className="h-3 w-3 text-purple-400/80" /> Total Pool
+              </div>
+              <div className="mt-0.5 text-white font-black text-lg tracking-tight tabular-nums">
+                {totalPoolDisplay != null ? `${totalPoolDisplay.toLocaleString(undefined, { maximumFractionDigits: 4 })} STT` : "—"}
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold tracking-widest px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-300 shadow-sm uppercase font-mono">
+              {symbol}
+            </span>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="text-gray-400">Locked Price</div>
-              <div className="mt-1 font-semibold tabular-nums text-emerald-100 truncate">{lockUsd != null ? `$${lockUsd.toFixed(4)}` : "—"}</div>
+          {/* Locked vs Closed Target Row */}
+          <div className="mt-3.5 grid grid-cols-2 gap-3 text-xs">
+            <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] p-3 shadow-sm">
+              <div className="text-gray-500 font-medium uppercase text-[10px] tracking-wider">Locked Price</div>
+              <div className="mt-1 font-bold tabular-nums text-gray-200 truncate">
+                {lockUsd != null ? `$${lockUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—"}
+              </div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:text-right">
-              <div className="text-gray-400">Close Price</div>
-              <div className="mt-1 font-semibold tabular-nums text-emerald-100 truncate">{closeUsd != null ? `$${closeUsd.toFixed(4)}` : "—"}</div>
+            <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] p-3 shadow-sm">
+              <div className="text-gray-500 font-medium uppercase text-[10px] tracking-wider">Target Close</div>
+              <div className="mt-1 font-bold tabular-nums text-gray-200 truncate">
+                {closeUsd != null ? `$${closeUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—"}
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3">
-              <div className="text-[11px] text-emerald-200 font-semibold">UP</div>
-              <div className="mt-1 text-sm text-white/90">{upDisplay != null ? `${upDisplay.toFixed(4)} ETH` : "—"}</div>
+          {/* Bid Pools Distribution (UP/DOWN Blocks) */}
+          <div className="mt-3.5 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-emerald-500/10 bg-gradient-to-b from-emerald-500/[0.08] to-transparent p-3 shadow-sm relative group/up hover:border-emerald-500/20 transition-colors">
+              <div className="text-[10px] text-emerald-400 font-black tracking-widest uppercase flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" /> UP
+              </div>
+              <div className="mt-1 text-sm font-bold text-white tabular-nums tracking-tight">
+                {upDisplay != null ? `${upDisplay.toFixed(3)} ETH` : "—"}
+              </div>
             </div>
-            <div className="rounded-xl border border-pink-400/30 bg-pink-400/10 p-3">
-              <div className="text-[11px] text-pink-200 font-semibold">DOWN</div>
-              <div className="mt-1 text-sm text-white/90">{downDisplay != null ? `${downDisplay.toFixed(4)} ETH` : "—"}</div>
+            
+            <div className="rounded-xl border border-rose-500/10 bg-gradient-to-b from-rose-500/[0.08] to-transparent p-3 shadow-sm relative group/down hover:border-rose-500/20 transition-colors">
+              <div className="text-[10px] text-rose-400 font-black tracking-widest uppercase flex items-center gap-1">
+                <TrendingDown className="h-3 w-3" /> DOWN
+              </div>
+              <div className="mt-1 text-sm font-bold text-white tabular-nums tracking-tight">
+                {downDisplay != null ? `${downDisplay.toFixed(3)} ETH` : "—"}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-3 text-[11px] text-gray-500 font-mono truncate">{address}</div>
+        {/* Address Footer identifier */}
+        <div className="mt-3 text-[10px] text-gray-600 font-mono truncate text-center select-none tracking-tight">{address}</div>
       </div>
     </Link>
   );

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { formatUnits } from "viem";
-import { Clock, ExternalLink } from "lucide-react";
+import { Clock, ExternalLink, Share2 } from "lucide-react";
 import { somniaTestnet } from "@/app/config/chains";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
 import { TokenAvatar } from "@/app/components/TokenAvatar";
@@ -32,6 +32,8 @@ export type PredictionMarketCardProps = {
   upWon?: boolean;
   startTimestamp?: bigint;
   closeTimestamp?: bigint;
+  isSharing?: boolean;
+  onShareClick?: () => void;
 };
 
 export function PredictionMarketCard({
@@ -49,6 +51,8 @@ export function PredictionMarketCard({
   upWon,
   startTimestamp,
   closeTimestamp,
+  isSharing = false,
+  onShareClick,
 }: PredictionMarketCardProps) {
   const coinSymbol = useMemo(() => {
     const normalizedId = (coinId || "").trim().toLowerCase();
@@ -57,11 +61,9 @@ export function PredictionMarketCard({
     if (normalizedId === "solana" || normalizedId === "sol") return "SOL";
     if (normalizedId === "somnia" || normalizedId === "somi") return "SOMI";
 
-    // Try to infer from market symbol like "BTC5M" -> "BTC"
     const fromMarketSymbol = (symbol || "").trim().match(/^[A-Za-z]{2,6}/)?.[0];
     if (fromMarketSymbol) return fromMarketSymbol.toUpperCase();
 
-    // Fall back to coinId if it looks like a symbol
     const fromCoinId = (coinId || "").trim().match(/^[A-Za-z]{2,6}$/)?.[0];
     return fromCoinId ? fromCoinId.toUpperCase() : null;
   }, [coinId, symbol]);
@@ -91,25 +93,19 @@ export function PredictionMarketCard({
   const startMs = typeof startTimestamp === "bigint" ? Number(startTimestamp) * 1000 : null;
   const closeMs = typeof closeTimestamp === "bigint" ? Number(closeTimestamp) * 1000 : null;
   
-  // === FIX STATE MACHINE INTERPRETATION TO MATCH YOUR STATE LIFE-CYCLE ===
   const isCancelled = roundStatus === 3;
   const isEnded = roundStatus === 2 || (typeof closePrice === "bigint" && closePrice !== 0n);
 
   const isLocked = useMemo(() => {
     if (isEnded || isCancelled) return false;
-    // If the contract explicitly says it's locked via admin trigger, lock it immediately
     if (roundStatus === 1) return true;
-    
-    // Fallback chronological safety boundary checks
     if (typeof closeMs !== "number" || !Number.isFinite(closeMs)) return false;
     return now >= closeMs;
   }, [closeMs, isEnded, isCancelled, roundStatus, now]);
 
   const isLive = useMemo(() => {
     if (isEnded || isCancelled || isLocked) return false;
-    // Explicit contract state status 0 stands for RoundStatus.LIVE
     if (roundStatus === 0) return true;
-    
     if (typeof roundEpoch !== "bigint" || roundEpoch === 0n) return false;
     return true;
   }, [isEnded, isCancelled, isLocked, roundStatus, roundEpoch]);
@@ -177,13 +173,33 @@ export function PredictionMarketCard({
   const loserSide = winnerSide === "UP" ? "DOWN" : winnerSide === "DOWN" ? "UP" : null;
   const loserPayout = loserSide === "UP" ? upPayout : loserSide === "DOWN" ? downPayout : null;
 
+  const renderShareButton = () => {
+    if (!onShareClick) return null;
+    return (
+      <button
+        type="button"
+        disabled={isSharing}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onShareClick();
+        }}
+        className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-monad-purple/40 transition-colors duration-150 disabled:opacity-40"
+        aria-label="Share layout snapshot"
+        title="Share to Twitter"
+      >
+        <Share2 className={`h-4 w-4 ${isSharing ? "animate-pulse text-monad-purple" : ""}`} />
+      </button>
+    );
+  };
+
   if (isComingSoon) {
     return (
       <Link
         href={`/markets/${address}`}
         data-market-card
         data-market-address={address.toLowerCase()}
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-all duration-200 ease-out overflow-hidden hover:border-monad-purple/40 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_-14px_rgba(135,109,255,0.22)]"
+        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden hover:border-monad-purple/40 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_-14px_rgba(135,109,255,0.22)]"
       >
         <div className="px-4 py-4 bg-black/20 border-b border-white/10">
           <div className="flex items-center justify-between gap-3">
@@ -193,7 +209,10 @@ export function PredictionMarketCard({
               </span>
               Later
             </span>
-            {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
+            <div className="flex items-center gap-2">
+              {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
+              {renderShareButton()}
+            </div>
           </div>
         </div>
 
@@ -228,7 +247,7 @@ export function PredictionMarketCard({
         href={`/markets/${address}`}
         data-market-card
         data-market-address={address.toLowerCase()}
-        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-white/5 transition-all duration-200 ease-out overflow-hidden opacity-75 hover:opacity-100 hover:border-monad-purple/40 hover:-translate-y-0.5"
+        className="flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border border-white/10 bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden opacity-75 hover:opacity-100 hover:border-monad-purple/40 hover:-translate-y-0.5"
       >
         <div className="px-4 pt-4 pb-3 bg-black/20 border-b border-white/10">
           <div className="flex items-center justify-between gap-3">
@@ -240,6 +259,7 @@ export function PredictionMarketCard({
             </span>
             <div className="flex items-center gap-2">
               {typeof roundEpoch === "bigint" ? <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span> : null}
+              {renderShareButton()}
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}
@@ -330,7 +350,7 @@ export function PredictionMarketCard({
       data-market-card
       data-market-address={address.toLowerCase()}
       className={[
-        "flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-white/5 transition-all duration-200 ease-out overflow-hidden",
+        "flex-none w-[360px] sm:w-[380px] snap-center rounded-2xl border bg-[#0b0b14] transition-all duration-200 ease-out overflow-hidden",
         isLive ? "border-monad-purple/40 hover:border-monad-purple/70 hover:-translate-y-0.5" : "border-white/10 hover:border-monad-purple/40 opacity-80 hover:opacity-100 hover:-translate-y-0.5",
       ].join(" ")}
     >
@@ -356,6 +376,7 @@ export function PredictionMarketCard({
             {typeof roundEpoch === "bigint" ? (
               <span className="text-[12px] text-gray-400 font-mono">#{roundEpoch.toString()}</span>
             ) : null}
+            {renderShareButton()}
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (explorerUrl) window.open(explorerUrl, "_blank", "noreferrer"); }}

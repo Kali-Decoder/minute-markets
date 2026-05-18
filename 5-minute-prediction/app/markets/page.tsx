@@ -14,6 +14,7 @@ import { somniaTestnet } from "@/app/config/chains";
 import { getPredictionMarketFactoryAddress } from "@/app/config/predictionAddresses";
 import { useCoinPrice } from "@/app/hooks/useCoinPrice";
 import { TokenAvatar } from "@/app/components/TokenAvatar";
+import { toPng } from "html-to-image";
 
 function asAddress(value: string): Address | null {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : null;
@@ -24,7 +25,6 @@ type MarketTab = "bitcoin" | "ethereum" | "solana" | "somnia";
 function matchesTab(coinId: string, tab: MarketTab): boolean {
   const normalized = (coinId || "").trim().toLowerCase();
   if (!normalized) return false;
-  // tolerate "btc"/"eth"/"sol" symbols or full ids
   if (tab === "bitcoin") return normalized === "bitcoin" || normalized === "btc";
   if (tab === "ethereum") return normalized === "ethereum" || normalized === "eth";
   if (tab === "solana") return normalized === "solana" || normalized === "sol";
@@ -72,6 +72,7 @@ export default function MarketsPage() {
   const { data: allMarkets, isLoading, error, refetch } = usePredictionMarketFactoryGetAllMarkets(true);
   const { createMarket, isPending: isCreating, isConfirming } = usePredictionMarketFactoryCreateMarket();
 
+  const [sharingAddress, setSharingAddress] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [form, setForm] = useState({ marketName: "", marketSymbol: "", coinId: "" });
@@ -95,7 +96,6 @@ export default function MarketsPage() {
     return list.filter(Boolean);
   }, [allMarkets]);
 
-  /** Factory list is typically chronological; show newest first so launches are at the start of the strip. */
   const marketsNewestFirst = useMemo(() => [...markets].reverse(), [markets]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -106,7 +106,7 @@ export default function MarketsPage() {
     const el = scrollRef.current;
     if (!el) return;
     const firstCard = el.querySelector<HTMLElement>("[data-market-card]");
-    const step = (firstCard?.offsetWidth ?? 360) + 16; // card width + gap-4
+    const step = (firstCard?.offsetWidth ?? 360) + 16;
     const amount = Math.max(step, Math.floor(el.clientWidth * 0.8));
     const delta = direction === "left" ? -amount : amount;
     try {
@@ -275,6 +275,50 @@ export default function MarketsPage() {
     }
   };
 
+  const handleShareSnapshot = async (targetAddress: Address, marketName: string, coinSymbol: string | null) => {
+    const lowerAddress = targetAddress.toLowerCase();
+    const targetEl = scrollRef.current?.querySelector(`[data-market-address="${lowerAddress}"]`) as HTMLDivElement;
+    if (!targetEl) return;
+
+    try {
+      setSharingAddress(lowerAddress);
+
+      const dataUrl = await toPng(targetEl, {
+        quality: 0.95,
+        backgroundColor: "#0b0b14",
+        style: {
+          transform: "scale(1)",
+          transition: "none",
+        },
+      });
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      
+      if (navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ [blob.type]: blob }),
+        ]);
+        alert("Snapshot copied to clipboard! You can paste it directly into your Tweet.");
+      } else {
+        const link = document.createElement("a");
+        link.download = `market-${targetAddress.slice(0, 6)}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+
+      const marketUrl = `${window.location.origin}/markets/${targetAddress}`;
+      const tweetText = `Checking out the ${marketName} (${coinSymbol ?? 'Crypto'}) prediction market on Somnia! 🔮💰\n\nTake a look here: `;
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(marketUrl)}`;
+      
+      window.open(twitterUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error generating marketplace snapshot:", err);
+    } finally {
+      setSharingAddress(null);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-16">
       <div className="flex items-center justify-between gap-3 mb-6">
@@ -282,14 +326,6 @@ export default function MarketsPage() {
           <ArrowLeft className="h-4 w-4" />
           Home
         </Link>
-        {/* <button
-          onClick={() => setIsCreateOpen(true)}
-          disabled={!canCreate}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-monad-purple text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="h-4 w-4" />
-          Create Market
-        </button> */}
       </div>
 
       <div className="flex items-start justify-between gap-4 mb-2">
@@ -487,6 +523,8 @@ export default function MarketsPage() {
                   showLiveOnly={showLiveOnly}
                   nowMs={serviceNow}
                   onMeta={handleMarketMeta}
+                  sharingAddress={sharingAddress}
+                  onShare={handleShareSnapshot}
                 />
               ))}
             </div>
@@ -582,6 +620,8 @@ function MarketCardFromFactory({
   showLiveOnly,
   nowMs,
   onMeta,
+  sharingAddress,
+  onShare,
 }: {
   market: Address;
   tab: MarketTab;
@@ -591,6 +631,8 @@ function MarketCardFromFactory({
     address: Address,
     meta: { tab: MarketTab | null; epoch: bigint; lockPrice: bigint; closePrice: bigint; closeTimestamp: bigint }
   ) => void;
+  sharingAddress: string | null;
+  onShare: (address: Address, name: string, symbol: string | null) => void;
 }) {
   const { data } = usePredictionMarketFactoryGetMarketInfo(market, true);
   const { data: roundData } = useMarketCurrentRound(market, true);
@@ -643,6 +685,16 @@ function MarketCardFromFactory({
     return nowMs < closeMs;
   }, [nowMs, round]);
 
+  const coinSymbol = useMemo(() => {
+    if (!info?.coinId) return null;
+    const normalizedId = info.coinId.trim().toLowerCase();
+    if (normalizedId === "bitcoin" || normalizedId === "btc") return "BTC";
+    if (normalizedId === "ethereum" || normalizedId === "eth") return "ETH";
+    if (normalizedId === "solana" || normalizedId === "sol") return "SOL";
+    if (normalizedId === "somnia" || normalizedId === "somi") return "SOMI";
+    return null;
+  }, [info?.coinId]);
+
   useEffect(() => {
     if (!onMeta) return;
     onMeta(market, {
@@ -656,24 +708,25 @@ function MarketCardFromFactory({
 
   if (!info) {
     const addr = asAddress(market);
-  return (
-    <PredictionMarketCard
-      address={addr ?? (market as Address)}
-      name="Loading…"
-      symbol=""
-      coinId=""
-      roundStatus={typeof round?.status === "number" ? round.status : undefined}
-      roundEpoch={round?.epoch}
-      totalPool={round?.totalPool}
-      upPool={round?.upPool}
-      downPool={round?.downPool}
-      lockPrice={round?.lockPrice}
-      closePrice={round?.closePrice}
-      upWon={round?.upWon}
-      startTimestamp={round?.startTimestamp}
-      closeTimestamp={round?.closeTimestamp}
-    />
-  );
+    return (
+      <PredictionMarketCard
+        address={addr ?? (market as Address)}
+        name="Loading…"
+        symbol=""
+        coinId=""
+        roundStatus={typeof round?.status === "number" ? round.status : undefined}
+        roundEpoch={round?.epoch}
+        totalPool={round?.totalPool}
+        upPool={round?.upPool}
+        downPool={round?.downPool}
+        lockPrice={round?.lockPrice}
+        closePrice={round?.closePrice}
+        upWon={round?.upWon}
+        startTimestamp={round?.startTimestamp}
+        closeTimestamp={round?.closeTimestamp}
+        isSharing={sharingAddress === market.toLowerCase()}
+      />
+    );
   }
 
   if (!matchesTab(info.coinId, tab)) return null;
@@ -695,6 +748,8 @@ function MarketCardFromFactory({
       upWon={round?.upWon}
       startTimestamp={round?.startTimestamp}
       closeTimestamp={round?.closeTimestamp}
+      isSharing={sharingAddress === info.marketAddress.toLowerCase()}
+      onShareClick={() => onShare(info.marketAddress, info.marketName, coinSymbol)}
     />
   );
 }

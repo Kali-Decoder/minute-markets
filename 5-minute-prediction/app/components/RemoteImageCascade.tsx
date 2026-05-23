@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type RemoteImageCascadeProps = {
   sources: (string | null | undefined)[];
@@ -32,11 +32,40 @@ export function RemoteImageCascade({
     [sources]
   );
 
-  const [failed, setFailed] = useState(0);
+  const urlsKey = useMemo(() => urls.join("|"), [urls]);
 
-  useEffect(() => {
-    setFailed(0);
-  }, [urls.join("|")]);
+  return (
+    <RemoteImageCascadeInner
+      key={urlsKey}
+      urls={urls}
+      alt={alt}
+      containerClassName={containerClassName}
+      imgClassName={imgClassName}
+      draggable={draggable}
+      loading={loading}
+      fallback={fallback}
+    />
+  );
+}
+
+function RemoteImageCascadeInner({
+  urls,
+  alt,
+  containerClassName,
+  imgClassName,
+  draggable,
+  loading,
+  fallback,
+}: {
+  urls: string[];
+  alt: string;
+  containerClassName?: string;
+  imgClassName?: string;
+  draggable: boolean;
+  loading: "eager" | "lazy";
+  fallback: ReactNode;
+}) {
+  const [failed, setFailed] = useState(0);
 
   const index = Math.min(failed, Math.max(0, urls.length - 1));
   const src = urls[index];

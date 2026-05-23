@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import { ArrowLeft, ShieldAlert, ShieldCheck, Unplug, Terminal } from "lucide-react";
 import { ADMIN_ADDRESS } from "@/app/config/admin";
 import { MarketServiceControl } from "@/app/components/MarketServiceControl";
+import { AdminPlatformAnalytics } from "@/app/components/AdminPlatformAnalytics";
 
 export default function AdminPage() {
   const { address, isConnected } = useAccount();
@@ -75,16 +76,20 @@ export default function AdminPage() {
           </div>
         ) : (
           /* Authenticated Admin Management Shell View */
-          <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0c0c16] to-[#040409] p-5 sm:p-6 shadow-md transition-all duration-300">
-            <div className="flex items-center gap-2 pb-4 border-b border-white/[0.04] mb-6">
-              <ShieldCheck className="h-4 w-4 text-purple-400" />
-              <h2 className="text-white font-black tracking-tight text-sm uppercase tracking-wide">
-                Active Node Environment Micro-Management
-              </h2>
+          <div className="space-y-4">
+            <AdminPlatformAnalytics enabled={true} />
+
+            <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0c0c16] to-[#040409] p-5 sm:p-6 shadow-md transition-all duration-300">
+              <div className="flex items-center gap-2 pb-4 border-b border-white/[0.04] mb-6">
+                <ShieldCheck className="h-4 w-4 text-purple-400" />
+                <h2 className="text-white font-black tracking-tight text-sm uppercase tracking-wide">
+                  Active Node Environment Micro-Management
+                </h2>
+              </div>
+              
+              {/* Embedded Pipeline Component Module */}
+              <MarketServiceControl defaultVariant="hero" showVariantToggle={true} />
             </div>
-            
-            {/* Embedded Pipeline Component Module */}
-            <MarketServiceControl defaultVariant="hero" showVariantToggle={true} />
           </div>
         )}
       </div>

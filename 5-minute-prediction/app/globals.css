@@ -8,6 +8,10 @@
   --card-bg: #121212;
   --card-border: #262626;
   --muted: #a1a1aa;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  --font-terminal: "VT323", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
 }
 
 @theme {
@@ -36,12 +40,31 @@ body {
   color: var(--foreground);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: hidden;
-  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-family: var(--font-terminal);
 }
 
 /* Apply mono font everywhere */
 * {
-  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-family: inherit;
+}
+
+/* Terminal-esque headings utility */
+.font-terminal {
+  font-family: var(--font-terminal);
+  letter-spacing: 0.02em;
+}
+
+/* Soft CRT-ish text rendering */
+html {
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global readability: bump base rem size */
+html {
+  font-size: clamp(16px, 1.05vw + 12px, 19px);
+  line-height: 1.35;
 }
 
 /* Animation utilities */
@@ -87,4 +110,20 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Make tiny UI labels readable with the terminal font */
+.text-xs {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.25rem !important;
+}
+
+.text-\[10px\] {
+  font-size: 0.8125rem !important; /* 13px */
+  line-height: 1.1rem !important;
+}
+
+.text-\[11px\] {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.2rem !important;
 }

@@ -40,7 +40,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body 
         className={`
-          font-mono antialiased 
+          antialiased 
           bg-background text-white 
           selection:bg-monad-purple/30 selection:text-monad-purple
           min-h-screen relative overflow-x-hidden
@@ -49,10 +49,23 @@ export default function RootLayout({
         <Providers>
           <AppLoader />
           <FontLoader />
-          {/* Subtle Ambient Background Glow */}
+          {/* Terminal Grid + Ambient Glow */}
           <div className="fixed inset-0 -z-10 h-full w-full bg-background">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-monad-purple/5 blur-[120px] rounded-full pointer-events-none" />
-          </div> 
+            {/* Glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[520px] bg-monad-purple/7 blur-[140px] rounded-full pointer-events-none" />
+            {/* Grid */}
+            <div
+              className="absolute inset-0 opacity-[0.18] pointer-events-none"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(135,109,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(135,109,255,0.12) 1px, transparent 1px)",
+                backgroundSize: "26px 26px",
+                backgroundPosition: "center",
+              }}
+            />
+            {/* Vignette */}
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/70" />
+          </div>
           <Navbar />
           <main className="pt-20 pb-12">
             {children}

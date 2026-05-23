@@ -5,6 +5,7 @@ import { useAccount, useChainId, useReadContract, useWaitForTransactionReceipt, 
 import type { Address, Hash } from "viem";
 import { somniaTestnet } from "@/app/config/chains";
 import { PredictionMarketABI } from "@/app/config/predictionMarketAbi";
+import { useTxToast } from "@/app/hooks/useTxToast";
 
 export type Round = {
   epoch: bigint;
@@ -122,6 +123,8 @@ export function useMarketBetUp(market?: Address) {
   const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
 
+  useTxToast({ hash, isConfirmed, error, label: "Bet up" });
+
   const betUp = async (params: { epoch: bigint; value: bigint }): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
     if (chainError) throw new Error(chainError);
@@ -144,6 +147,8 @@ export function useMarketBetDown(market?: Address) {
   const chainError = useEnsureSomniaTestnet();
   const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
+
+  useTxToast({ hash, isConfirmed, error, label: "Bet down" });
 
   const betDown = async (params: { epoch: bigint; value: bigint }): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
@@ -168,6 +173,8 @@ export function useMarketClaim(market?: Address) {
   const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
 
+  useTxToast({ hash, isConfirmed, error, label: "Claim" });
+
   const claim = async (epochs: bigint[]): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
     if (chainError) throw new Error(chainError);
@@ -191,6 +198,8 @@ export function useMarketStartRound(market?: Address) {
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
   const { data: depositRaw } = useMarketRequestDeposit(market, true);
   const deposit = typeof depositRaw === "bigint" ? depositRaw : undefined;
+
+  useTxToast({ hash, isConfirmed, error, label: "Start round" });
 
   const startRound = async (): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
@@ -224,6 +233,8 @@ export function useMarketRequestClosePrice(market?: Address) {
 
   const { writeContractAsync, data: hash, error, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
+
+  useTxToast({ hash, isConfirmed, error, label: "Request close price" });
 
   const requestClosePrice = async (epoch: bigint): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");

@@ -39,20 +39,24 @@ type MarketSnapshot = {
   market: Address;
   name: string;
   symbol: string;
-  active: boolean;
+  active: boolean; // factory-level toggle
   createdAtMs: number | null;
   contractBalanceWei: bigint | null;
   currentPoolWei: bigint | null;
   currentEpoch: bigint | null;
+  roundStatus: number | null; // PredictionMarket.RoundStatus
 };
 
 type TotalsPoint = { t: number; totalBalance: number; totalPool: number };
 
-type RoundLike = { totalPool?: bigint };
+type RoundLike = { totalPool?: bigint; status?: number };
 
 const STATUS_COLORS = {
-  active: "#a855f7",
-  inactive: "rgba(156,163,175,0.75)",
+  LIVE: "#22c55e",
+  LOCKED: "#60a5fa",
+  ENDED: "#a855f7",
+  CANCELLED: "#f97316",
+  INACTIVE: "rgba(156,163,175,0.75)",
 };
 
 type ContractCall = {
@@ -65,6 +69,16 @@ type ContractCall = {
 type CallResult<T> =
   | { status: "success"; result: T }
   | { status: "failure"; error: Error };
+
+type MinimalPublicClient = {
+  multicall: (params: { contracts: ContractCall[]; allowFailure: boolean }) => Promise<unknown[]>;
+  readContract: (params: {
+    address: Address;
+    abi: unknown;
+    functionName: string;
+    args?: readonly unknown[];
+  }) => Promise<unknown>;
+};
 
 function safeNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -86,6 +100,22 @@ function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+function roundStatusLabel(status: number | null | undefined): keyof typeof STATUS_COLORS | "—" {
+  if (status === null || status === undefined) return "—";
+  switch (status) {
+    case 0:
+      return "LIVE";
+    case 1:
+      return "LOCKED";
+    case 2:
+      return "ENDED";
+    case 3:
+      return "CANCELLED";
+    default:
+      return "—";
+  }
+}
+
 function toMs(ts: bigint | null | undefined): number | null {
   if (ts === null || ts === undefined) return null;
   const n = Number(ts);
@@ -93,17 +123,24 @@ function toMs(ts: bigint | null | undefined): number | null {
   return n * 1000;
 }
 
-async function readMany<T = unknown>(publicClient: any, calls: ContractCall[]): Promise<Array<CallResult<T>>> {
+async function readMany<T = unknown>(
+  publicClient: MinimalPublicClient,
+  calls: ContractCall[]
+): Promise<Array<CallResult<T>>> {
   try {
     const results = await publicClient.multicall({
       contracts: calls,
       allowFailure: true,
     });
-    return results.map((r: any) =>
-      r.status === "success"
-        ? ({ status: "success", result: r.result } as CallResult<T>)
-        : ({ status: "failure", error: r.error ?? new Error("Call failed") } as CallResult<T>)
-    );
+    return results.map((r) => {
+      if (r && typeof r === "object" && "status" in r) {
+        const rr = r as { status: string; result?: unknown; error?: unknown };
+        if (rr.status === "success") return { status: "success", result: rr.result as T } as CallResult<T>;
+        const err = rr.error instanceof Error ? rr.error : new Error("Call failed");
+        return { status: "failure", error: err } as CallResult<T>;
+      }
+      return { status: "failure", error: new Error("Call failed") } as CallResult<T>;
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     // Some chains (like Somnia Testnet) may not have multicall3 configured in viem.
@@ -204,6 +241,7 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
 
         const round = (roundResult && typeof roundResult === "object" ? (roundResult as RoundLike) : null);
         const totalPoolWei = round?.totalPool ?? null;
+        const roundStatus = typeof round?.status === "number" ? round.status : null;
 
         return {
           market: m.marketAddress,
@@ -214,6 +252,7 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
           contractBalanceWei: balance,
           currentPoolWei: totalPoolWei,
           currentEpoch: epoch,
+          roundStatus,
         };
       });
 
@@ -256,19 +295,29 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
 
   const totals = useMemo(() => {
     const totalMarkets = snapshots.length;
-    const activeMarkets = snapshots.filter((s) => s.active).length;
+    const liveMarkets = snapshots.filter((s) => s.active && s.roundStatus === 0).length;
     const totalBalanceWei = snapshots.reduce((acc, s) => (s.contractBalanceWei ? acc + s.contractBalanceWei : acc), 0n);
     const totalPoolWei = snapshots.reduce((acc, s) => (s.currentPoolWei ? acc + s.currentPoolWei : acc), 0n);
-    return { totalMarkets, activeMarkets, totalBalanceWei, totalPoolWei };
+    return { totalMarkets, liveMarkets, totalBalanceWei, totalPoolWei };
   }, [snapshots]);
 
-  const statusData = useMemo(
-    () => [
-      { name: "Active", value: totals.activeMarkets, fill: STATUS_COLORS.active },
-      { name: "Inactive", value: Math.max(0, totals.totalMarkets - totals.activeMarkets), fill: STATUS_COLORS.inactive },
-    ],
-    [totals.activeMarkets, totals.totalMarkets],
-  );
+  const statusData = useMemo(() => {
+    const counts: Record<string, number> = { LIVE: 0, LOCKED: 0, ENDED: 0, CANCELLED: 0, INACTIVE: 0 };
+    for (const s of snapshots) {
+      if (!s.active) {
+        counts.INACTIVE += 1;
+        continue;
+      }
+      const label = roundStatusLabel(s.roundStatus);
+      if (label === "—") continue;
+      counts[label] += 1;
+    }
+    return (Object.keys(counts) as Array<keyof typeof STATUS_COLORS>).map((k) => ({
+      name: k,
+      value: counts[k] ?? 0,
+      fill: STATUS_COLORS[k],
+    }));
+  }, [snapshots]);
 
   const balanceBars = useMemo(() => {
     return snapshots
@@ -327,7 +376,7 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
           icon={<Database className="h-4 w-4 text-purple-300" />}
           label="Markets"
           value={String(totals.totalMarkets)}
-          hint={`${totals.activeMarkets} active`}
+          hint={`${totals.liveMarkets} LIVE`}
         />
         <MetricCard
           icon={<Activity className="h-4 w-4 text-purple-300" />}
@@ -384,17 +433,39 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
         </Panel>
 
         <Panel title="Top Open Pools (Native)">
-          <div className="h-[220px]">
+          <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={poolBars} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "rgba(156,163,175,0.75)", fontSize: 11 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgba(156,163,175,0.75)", fontSize: 11 }} />
+              <BarChart data={poolBars} layout="vertical" margin={{ top: 6, right: 10, bottom: 6, left: 18 }}>
+                <defs>
+                  <linearGradient id="poolFill" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#a855f7" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "rgba(156,163,175,0.75)", fontSize: 11 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={86}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "rgba(156,163,175,0.8)", fontSize: 11 }}
+                />
                 <Tooltip
                   cursor={{ fill: "rgba(255,255,255,0.04)" }}
                   contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  formatter={(v: number | string) => [
+                    Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }),
+                    "Pool",
+                  ]}
                 />
-                <Bar dataKey="pool" fill="#60a5fa" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="pool" fill="url(#poolFill)" radius={[10, 10, 10, 10]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -437,10 +508,18 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
               <div className="col-span-5">Market</div>
               <div className="col-span-2 text-right">Balance</div>
               <div className="col-span-2 text-right">Open Pool</div>
-              <div className="col-span-3 text-right">Epoch</div>
+              <div className="col-span-2 text-right">Epoch</div>
+              <div className="col-span-1 text-right">Status</div>
             </div>
             <div className="divide-y divide-white/5">
               {snapshots.slice(0, 8).map((s) => (
+                (() => {
+                  const label = !s.active ? "INACTIVE" : roundStatusLabel(s.roundStatus);
+                  const color =
+                    label !== "—" && label in STATUS_COLORS
+                      ? STATUS_COLORS[label as keyof typeof STATUS_COLORS]
+                      : "rgba(156,163,175,0.75)";
+                  return (
                 <Link
                   key={s.market}
                   href={`/markets/${s.market}`}
@@ -450,7 +529,7 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
                     <span
                       className={[
                         "h-2 w-2 rounded-full shrink-0",
-                        s.active ? "bg-purple-400" : "bg-gray-600",
+                        s.active && s.roundStatus === 0 ? "bg-green-400" : s.active ? "bg-purple-400" : "bg-gray-600",
                       ].join(" ")}
                     />
                     <div className="min-w-0">
@@ -462,8 +541,18 @@ export function AdminPlatformAnalytics({ enabled }: { enabled: boolean }) {
                   </div>
                   <div className="col-span-2 text-right tabular-nums text-gray-200">{fmtNative(s.contractBalanceWei)}</div>
                   <div className="col-span-2 text-right tabular-nums text-gray-200">{fmtNative(s.currentPoolWei)}</div>
-                  <div className="col-span-3 text-right tabular-nums text-gray-400">{s.currentEpoch?.toString() ?? "—"}</div>
+                  <div className="col-span-2 text-right tabular-nums text-gray-400">{s.currentEpoch?.toString() ?? "—"}</div>
+                  <div className="col-span-1 text-right">
+                    <span
+                      className="inline-flex items-center justify-end rounded-lg border px-1.5 py-0.5 text-[10px] font-black tracking-widest"
+                      style={{ borderColor: "rgba(255,255,255,0.10)", color }}
+                    >
+                      {label}
+                    </span>
+                  </div>
                 </Link>
+                  );
+                })()
               ))}
 
               {!snapshots.length && !loading ? (

@@ -6,6 +6,7 @@ import type { Address, Hash } from "viem";
 import { somniaTestnet } from "@/app/config/chains";
 import { PredictionMarketFactoryABI } from "@/app/config/predictionMarketFactoryAbi";
 import { getPredictionMarketFactoryAddress } from "@/app/config/predictionAddresses";
+import { useTxToast } from "@/app/hooks/useTxToast";
 
 export type MarketInfo = {
   marketAddress: Address;
@@ -52,6 +53,8 @@ export function usePredictionMarketFactoryCreateMarket() {
     hash,
   });
 
+  useTxToast({ hash, isConfirmed, error, label: "Create market" });
+
   const createMarket = async (params: { marketName: string; marketSymbol: string; coinId: string }): Promise<Hash> => {
     if (!isConnected || !userAddress) throw new Error("Please connect your wallet to continue.");
     if (chainId !== somniaTestnet.id) {
@@ -74,4 +77,3 @@ export function usePredictionMarketFactoryCreateMarket() {
 
   return { createMarket, hash, error, isPending, isConfirming, isConfirmed, receipt, reset };
 }
-

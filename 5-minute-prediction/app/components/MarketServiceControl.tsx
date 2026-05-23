@@ -5,6 +5,7 @@ import type { Address, Hash } from "viem";
 import { useAccount } from "wagmi";
 import { Play, Square, Eye, EyeOff, KeyRound, ExternalLink, ShieldAlert, Cpu, Network } from "lucide-react";
 import { ADMIN_ADDRESS } from "@/app/config/admin";
+import { useToastContext } from "@/app/contexts/ToastContext";
 
 const BACKEND_API_BASE = "https://minute-markets.onrender.com/api/market-service";
 
@@ -42,6 +43,7 @@ export function MarketServiceControl({
   showVariantToggle?: boolean;
 }) {
   const { address } = useAccount();
+  const { showInfo, showSuccess, showError } = useToastContext();
   const isAdmin = useMemo(() => {
     if (!address) return false;
     return address.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
@@ -98,6 +100,7 @@ export function MarketServiceControl({
   const call = async (path: "start" | "stop") => {
     setLoading(true);
     try {
+      showInfo(path === "start" ? "Starting pipeline…" : "Stopping pipeline…", 3500);
       const headers: Record<string, string> = {
         "Content-Type": "application/json"
       };
@@ -113,7 +116,9 @@ export function MarketServiceControl({
       const json = (await res.json()) as ServiceState & { error?: string };
       if (!res.ok) throw new Error(json.error || "Request execution rejected");
       setState(json);
+      showSuccess(path === "start" ? "Pipeline started" : "Pipeline stopped", 5000);
     } catch (e) {
+      showError(e instanceof Error ? e.message : String(e), 8000);
       setState((prev) => ({ 
         ...(prev ?? { running: false, lastError: null, nextCreateAt: null, nextLockAt: null, nextCloseAt: null }), 
         lastError: e instanceof Error ? e.message : String(e) 

@@ -5,6 +5,7 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAcc
 import { Address, Abi } from 'viem';
 import { PredictionMarketABI } from '../config/abi_config';
 import { somniaTestnet } from '../config/chains';
+import { useTxToast } from "@/app/hooks/useTxToast";
 
 type UsePredictionMarketConfig = {
     enabled?: boolean;
@@ -66,6 +67,8 @@ export function usePredictionMarketPlaceBet(marketAddress?: Address, config: Use
         hash,
     });
 
+    useTxToast({ hash, isConfirmed, error, label: "Place bet" });
+
     const placeBet = async (predictedValue: bigint, value?: bigint) => {
         if (!isConnected || !address) {
             throw new Error('Please connect your wallet to continue.');
@@ -117,6 +120,8 @@ export function usePredictionMarketClaimReward(marketAddress?: Address, config: 
     const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({
         hash,
     });
+
+    useTxToast({ hash, isConfirmed, error, label: "Claim reward" });
 
     const claimReward = async () => {
         if (!isConnected || !address) {

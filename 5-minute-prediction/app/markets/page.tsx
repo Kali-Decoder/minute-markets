@@ -56,17 +56,55 @@ function formatCountdown(ms: number): string {
   return `${m}m ${s}s`;
 }
 
-function LaunchStep({ label, value, isActive }: { label: string; value: string; isActive?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-3.5 transition-all duration-300 ${
-      isActive 
-        ? "border-purple-500/30 bg-purple-500/10 shadow-[0_0_15px_rgba(139,92,246,0.1)]" 
-        : "border-white/5 bg-white/[0.02]"
-    }`}>
-      <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">{label}</div>
-      <div className="mt-1 text-base font-black text-white tabular-nums tracking-tight">{value}</div>
-    </div>
-  );
+function formatCompactCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatRelativeTime(targetMs: number | null, nowMs: number): string | null {
+  if (!targetMs) return null;
+  const diff = nowMs - targetMs;
+  const abs = Math.abs(diff);
+  if (abs < 1000) return "just now";
+  const totalSec = Math.floor(abs / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  const suffix = diff >= 0 ? "ago" : "from now";
+  if (mins <= 0) return `${secs}s ${suffix}`;
+  if (mins < 60) return `${mins}m ${secs}s ${suffix}`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hours}h ${remMins}m ${suffix}`;
+}
+
+function getSettlementClock(state: ServiceState | undefined, nowMs: number) {
+  if (state?.nextLockAt) {
+    return {
+      primaryLabel: "Lock",
+      primaryValue: formatCompactCountdown(state.nextLockAt - nowMs),
+      secondaryLabel: "Close",
+      secondaryValue: state.nextCloseAt ? formatCompactCountdown(state.nextCloseAt - nowMs) : "pending",
+    };
+  }
+
+  if (state?.nextCloseAt) {
+    return {
+      primaryLabel: "Close",
+      primaryValue: formatCompactCountdown(state.nextCloseAt - nowMs),
+      secondaryLabel: "Settlement",
+      secondaryValue: "finalizing",
+    };
+  }
+
+  return {
+    primaryLabel: "Launch",
+    primaryValue: formatCompactCountdown(state?.nextCreateAt ? state.nextCreateAt - nowMs : 0),
+    secondaryLabel: "Settlement",
+    secondaryValue: "queued",
+  };
 }
 
 export default function MarketsPage() {
@@ -188,7 +226,7 @@ export default function MarketsPage() {
   });
 
   const nextLaunchIn = serviceState?.nextCreateAt ? formatCountdown(serviceState.nextCreateAt - serviceNow) : null;
-  const closeIn = serviceState?.nextCloseAt ? formatCountdown(serviceState.nextCloseAt - serviceNow) : null;
+  const settlementClock = useMemo(() => getSettlementClock(serviceState, serviceNow), [serviceState, serviceNow]);
 
   const canCreate = chainId === somniaTestnet.id && !!factoryAddress;
 
@@ -371,50 +409,56 @@ export default function MarketsPage() {
             </div>
             <div>
               <div className="text-white font-black tracking-tight text-sm">Automated Launch Node</div>
-              <div className="text-[10px] text-gray-500 font-medium tracking-wide">Dynamic 5-minute oracle-backed cycle rounds</div>
+              <div className="text-[10px] text-gray-500 font-medium tracking-wide">Settlement clock, launch status, and pipeline state</div>
             </div>
           </div>
           <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-md border tracking-widest ${
             serviceState?.running ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]" : "border-white/10 bg-white/5 text-gray-500"
           }`}>
-            {serviceState?.running ? "Synchronized" : "Stalled"}
+            {serviceState?.running ? "Pipeline Active" : "Pipeline Paused"}
           </span>
         </div>
 
-        <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="text-[10px] uppercase font-black text-gray-500 tracking-wider">Next Pipeline Generation In</div>
-            <div className="text-3xl font-black tracking-tight text-white mt-0.5 tabular-nums drop-shadow-sm bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-              {serviceState?.running ? nextLaunchIn ?? "—" : "00:00"}
-            </div>
-          </div>
-          
-          {serviceState?.lastCreatedMarket ? (
-            <div className="text-xs text-gray-400 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
-                <span className="font-bold text-gray-300 uppercase tracking-wide">Latest Deploy:</span>
+        <div className="mt-4 relative z-10 rounded-2xl border border-white/5 bg-black/20 p-4 sm:p-5">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+              <div>
+                <div className="text-[10px] uppercase font-black text-gray-500 tracking-[0.28em]">Settlement Clock</div>
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="text-[11px] uppercase tracking-[0.28em] text-purple-300/80 font-black">{settlementClock.primaryLabel}</span>
+                  <span className="text-4xl sm:text-6xl font-black tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent tabular-nums leading-none">
+                    {settlementClock.primaryValue}
+                  </span>
+                </div>
               </div>
-              <span className="text-white font-black uppercase bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">{serviceState.lastCreatedMarket.coinId}</span>
-              <span className="text-gray-600 font-mono font-light">|</span>
-              <span className="text-gray-400 font-mono text-[11px] font-medium bg-black/20 px-2 py-0.5 rounded border border-white/[0.03]">{serviceState.lastCreatedMarket.address}</span>
+
+              <div className="pb-1">
+                <div className="text-[10px] uppercase font-black text-gray-500 tracking-[0.28em]">Next Stage</div>
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="text-[11px] uppercase tracking-[0.28em] text-gray-400 font-black">{settlementClock.secondaryLabel}</span>
+                  <span className="text-2xl sm:text-3xl font-black tracking-tight text-white tabular-nums leading-none">
+                    {settlementClock.secondaryValue}
+                  </span>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="text-xs text-gray-500 font-medium italic">Waiting for initial state generation...</div>
-          )}
-        </div>
 
-        {serviceState?.lastError && (
-          <div className="mt-3 text-xs font-semibold text-rose-400 bg-rose-500/5 border border-rose-500/10 px-3 py-2 rounded-xl flex items-center gap-2">
-            <X className="h-3.5 w-3.5 flex-none" /> Engine Log Exception: {serviceState.lastError}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-white/[0.04] pt-4">
+              {serviceState?.lastCreatedMarket ? (
+                <div className="text-xs text-gray-400 flex flex-wrap items-center gap-2">
+                  <span className="text-gray-500 uppercase tracking-wider font-black text-[10px]">Last market launch</span>
+                  <span className="text-white font-black uppercase bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">{serviceState.lastCreatedMarket.coinId}</span>
+                  <span className="text-gray-500 font-mono text-[11px]">{formatRelativeTime(serviceState.lastCreatedMarket.createdAt, serviceNow)}</span>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 font-medium italic">Waiting for the first market launch.</div>
+              )}
+
+              <div className="text-xs text-gray-400">
+                Pipeline status: <span className={`font-black ${serviceState?.running ? "text-emerald-400" : "text-gray-300"}`}>{serviceState?.running ? "Running" : "Paused"}</span>
+              </div>
+            </div>
           </div>
-        )}
-
-        {/* Horizontal Pipeline Steps */}
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
-          <LaunchStep label="1. Deployment Queue" value={serviceState?.running ? nextLaunchIn ?? "—" : "00:00"} isActive={serviceState?.running} />
-          <LaunchStep label="2. Price Locking" value={serviceState?.running ? "Automatic Oracle Sync" : "—"} />
-          <LaunchStep label="3. Settling Window" value={serviceState?.running ? closeIn ?? "—" : "00:00"} />
         </div>
       </div>
 

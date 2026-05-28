@@ -9,10 +9,15 @@ export type ServiceState = {
   running: boolean;
   lastError: string | null;
   nextCreateAt: number | null;
+  nextLockAt: number | null;
   nextCloseAt: number | null;
   lastCreatedMarket?: { address: Address; coinId: string; createdAt: number; txHash: Hash };
   lastActions?: {
+    startedAt?: number | null;
+    lockRequestedAt?: number | null;
+    closeRequestedAt?: number | null;
     startTxHash?: Hash | null;
+    lockTxHash?: Hash | null;
     closeTxHash?: Hash | null;
   };
 };

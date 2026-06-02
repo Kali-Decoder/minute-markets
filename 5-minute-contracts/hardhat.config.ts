@@ -3,7 +3,6 @@ import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-ethers";
 import "dotenv/config";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 const config = {
   solidity: {
     version: "0.8.28",
@@ -37,8 +36,8 @@ const config = {
   etherscan: {
     enabled: true,
     apiKey: {
-      somniaMainnet: ETHERSCAN_API_KEY,
-      somniaTestnet: ETHERSCAN_API_KEY,
+      somniaTestnet: "not needed",
+      "somnia-mainnet": "empty"
     },
     customChains: [
       {

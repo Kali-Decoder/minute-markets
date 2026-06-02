@@ -4,6 +4,11 @@
 
 A decentralized AI-powered prediction market built on Somnia where users predict whether an asset price will go **UP** or **DOWN** within 5-minute rounds.
 
+
+Successfully verified contract PredictionMarketFactory on the block explorer.
+https://shannon-explorer.somnia.network/address/0xFD204c783A78db5142d4b13A5a11B005dc9C16Dc#code
+
+
 Built using:
 
 - ⚡ Somnia Network

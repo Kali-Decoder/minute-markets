@@ -11,7 +11,7 @@ function shortHash(h: string): string {
 
 function txUrl(hash: Hash): string {
   // Somnia explorer
-  return `https://explorer.somnia.network/tx/${hash}`;
+  return `https://shannon-explorer.somnia.network/tx/${hash}`;
 }
 
 export function useTxToast(params: {

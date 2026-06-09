@@ -191,7 +191,7 @@ export function MarketServiceControl({
               </div>
               <span className="text-white font-black uppercase bg-purple-500/15 border border-purple-500/20 px-1.5 py-0.5 rounded text-[10px]">{state.lastCreatedMarket.coinId}</span>
               <a 
-                href={`https://explorer.somnia.network/address/${state.lastCreatedMarket.address}`}
+                href={`https://shannon-explorer.somnia.network/address/${state.lastCreatedMarket.address}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-gray-400 font-mono text-[11px] hover:text-purple-400 break-all select-all flex items-center gap-1 underline decoration-white/10 hover:decoration-purple-500/40"

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useBalance, useDisconnect } from "wagmi";
+import { useBalance, useDisconnect, useSwitchChain } from "wagmi";
 import { Copy, LogOut, ExternalLink, ChevronDown, Wallet, AlertTriangle } from "lucide-react";
 import { formatEther, isAddress, type Address } from "viem";
 import { somniaTestnet } from "@/app/config/chains";
@@ -10,6 +10,7 @@ import { useToastContext } from "@/app/contexts/ToastContext";
 
 export function WalletConnect() {
   const { disconnect } = useDisconnect();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { showSuccess } = useToastContext();
   
   // Local UI state
@@ -41,6 +42,10 @@ export function WalletConnect() {
   const viewOnExplorer = (address: string) => {
     window.open(`https://shannon-explorer.somnia.network/address/${address}`, "_blank");
     setIsDropdownOpen(false);
+  };
+
+  const handleSwitchNetwork = () => {
+    switchChain({ chainId: somniaTestnet.id });
   };
 
   const handleDisconnect = () => {
@@ -147,11 +152,12 @@ export function WalletConnect() {
             <div className="p-2">
               {!isCorrectChain && (
                 <button
-                  onClick={openChainModal}
-                  className="w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm text-yellow-400 hover:bg-yellow-400/10 transition-colors mb-2 border border-yellow-500/30"
+                  onClick={handleSwitchNetwork}
+                  disabled={isSwitching}
+                  className="w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm text-yellow-400 hover:bg-yellow-400/10 transition-colors mb-2 border border-yellow-500/30 disabled:opacity-60"
                 >
                   <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span>Switch to Somnia Testnet</span>
+                  <span>{isSwitching ? "Switching..." : "Switch to Somnia Testnet"}</span>
                 </button>
               )}
               <button
@@ -199,12 +205,12 @@ export function WalletConnect() {
         const connected =
           ready &&
           account &&
-          chain &&
           (!authenticationStatus ||
             authenticationStatus === 'authenticated');
 
         // Check if wallet is connected to the correct chain
         const isCorrectChain = chain?.id === somniaTestnet.id;
+        const needsNetworkSwitch = connected && (!chain || chain.unsupported || !isCorrectChain);
 
         return (
           <div
@@ -235,18 +241,23 @@ export function WalletConnect() {
                 );
               }
 
-              // Wrong network - show custom chain switch button
-              if (chain.unsupported || !isCorrectChain) {
+              // Wrong network - show switch to Somnia Testnet button
+              if (needsNetworkSwitch) {
                 return (
                   <div className="relative" ref={dropdownRef}>
                     <button
-                      onClick={openChainModal}
+                      onClick={handleSwitchNetwork}
+                      disabled={isSwitching}
                       type="button"
-                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border border-yellow-500/50 bg-yellow-500/10 text-yellow-500 font-medium text-xs sm:text-sm transition-all hover:bg-yellow-500/20"
+                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border border-yellow-500/50 bg-yellow-500/10 text-yellow-500 font-medium text-xs sm:text-sm transition-all hover:bg-yellow-500/20 disabled:opacity-60"
                     >
                       <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Wrong Network</span>
-                      <span className="sm:hidden">Wrong Net</span>
+                      <span className="hidden sm:inline">
+                        {isSwitching ? "Switching..." : "Switch to Somnia Testnet"}
+                      </span>
+                      <span className="sm:hidden">
+                        {isSwitching ? "..." : "Switch Net"}
+                      </span>
                     </button>
                     
                     {/* Chain Warning Banner */}
@@ -259,10 +270,11 @@ export function WalletConnect() {
                             Please switch to Somnia Testnet to continue.
                           </div>
                           <button
-                            onClick={openChainModal}
-                            className="w-full px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 text-[10px] sm:text-xs font-medium transition-colors"
+                            onClick={handleSwitchNetwork}
+                            disabled={isSwitching}
+                            className="w-full px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 text-[10px] sm:text-xs font-medium transition-colors disabled:opacity-60"
                           >
-                            Switch Network
+                            {isSwitching ? "Switching..." : "Switch to Somnia Testnet"}
                           </button>
                         </div>
                       </div>

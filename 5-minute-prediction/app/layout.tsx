@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { Navbar } from "./components/Navbar";
+import { NetworkGuard } from "./components/NetworkGuard";
 import { Providers } from "./providers";
 import { FontLoader } from "./components/FontLoader";
 import { AppLoader } from "./components/AppLoader";
@@ -31,11 +33,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookie = (await headers()).get("cookie");
+
   return (
     <html lang="en" className="dark">
       <body 
@@ -46,7 +50,7 @@ export default function RootLayout({
           min-h-screen relative overflow-x-hidden
         `}
       >
-        <Providers>
+        <Providers cookie={cookie}>
           <AppLoader />
           <FontLoader />
           {/* Terminal Grid + Ambient Glow */}
@@ -67,6 +71,7 @@ export default function RootLayout({
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/70" />
           </div>
           <Navbar />
+          <NetworkGuard />
           <main className="pt-20 pb-12">
             {children}
           </main>

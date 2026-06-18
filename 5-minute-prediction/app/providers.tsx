@@ -3,8 +3,8 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
-import { WagmiProvider, cookieToInitialState } from "wagmi";
+import { useState, type ReactNode } from "react";
+import { WagmiProvider } from "wagmi";
 import { somniaTestnet } from "@/app/config/chains";
 import { wagmiConfig } from "@/app/config/wagmi";
 import { rainbowKitTheme } from "./config/theme";
@@ -18,21 +18,11 @@ function ToastContainerWrapper() {
   return <ToastContainer toasts={toasts} onClose={removeToast} />;
 }
 
-export function Providers({
-  children,
-  cookie,
-}: {
-  children: ReactNode;
-  cookie?: string | null;
-}) {
+export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
-  const initialState = useMemo(
-    () => cookieToInitialState(wagmiConfig, cookie),
-    [cookie]
-  );
 
   return (
-    <WagmiProvider config={wagmiConfig} initialState={initialState}>
+    <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={darkTheme(rainbowKitTheme)}

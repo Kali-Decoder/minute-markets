@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
-import { Navbar } from "./components/Navbar";
-import { NetworkGuard } from "./components/NetworkGuard";
-import { Providers } from "./providers";
-import { FontLoader } from "./components/FontLoader";
-import { AppLoader } from "./components/AppLoader";
+import { ClientShell } from "./ClientShell";
 import { publicAssetUrl } from "@/app/config/publicAsset";
 import { BRAND_LOGO_FILENAME } from "@/app/config/brandAssets";
 
@@ -33,16 +28,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookie = (await headers()).get("cookie");
-
   return (
     <html lang="en" className="dark">
-      <body 
+      <body
         className={`
           antialiased 
           bg-background text-white 
@@ -50,32 +43,7 @@ export default async function RootLayout({
           min-h-screen relative overflow-x-hidden
         `}
       >
-        <Providers cookie={cookie}>
-          <AppLoader />
-          <FontLoader />
-          {/* Terminal Grid + Ambient Glow */}
-          <div className="fixed inset-0 -z-10 h-full w-full bg-background">
-            {/* Glow */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[520px] bg-monad-purple/7 blur-[140px] rounded-full pointer-events-none" />
-            {/* Grid */}
-            <div
-              className="absolute inset-0 opacity-[0.18] pointer-events-none"
-              style={{
-                backgroundImage:
-                  "linear-gradient(to right, rgba(135,109,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(135,109,255,0.12) 1px, transparent 1px)",
-                backgroundSize: "26px 26px",
-                backgroundPosition: "center",
-              }}
-            />
-            {/* Vignette */}
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/70" />
-          </div>
-          <Navbar />
-          <NetworkGuard />
-          <main className="pt-20 pb-12">
-            {children}
-          </main>
-        </Providers>
+        <ClientShell>{children}</ClientShell>
       </body>
     </html>
   );

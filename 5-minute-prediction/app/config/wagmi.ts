@@ -35,5 +35,5 @@ export const wagmiConfig = getDefaultConfig({
         "https://dream-rpc.somnia.network/"
     ),
   },
-  ssr: true,
+  ssr: false,
 });

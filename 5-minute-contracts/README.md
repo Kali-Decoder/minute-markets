@@ -42,3 +42,48 @@ Sanity-check reads/writes against the deployed factory/market:
 ```bash
 npx hardhat run scripts/test-functions.ts --network somniaTestnet
 ```
+
+## Live pool betting (50 accounts)
+
+Generate 50 test wallets (writes `bet-accounts.json`):
+
+```bash
+npx hardhat run scripts/prediction/generate-bet-accounts.ts
+```
+
+Fund each bot from the admin wallet (`PRIVATE_KEY` in `.env`), place random UP/DOWN bets (1–5 STT each), then sweep remaining STT back to admin.
+
+Provide the **live market address** when prompted in the terminal:
+
+```bash
+npx hardhat run scripts/prediction/bet-live-pools.ts --network somniaTestnet
+```
+
+Optional env:
+
+- `ACCOUNTS_JSON_PATH=./bet-accounts.json`
+- `MAX_ACCOUNTS=50`
+- `BOT_FUND_STT=6` — STT sent from admin to each bot before betting
+- `DRY_RUN=true` — preview without sending transactions
+
+## Bot claim rewards
+
+Claim rewards for all bot wallets that have unclaimed winnings on a market.
+Prompts for market address in the terminal:
+
+```bash
+npx hardhat run scripts/prediction/claim-live-pools.ts --network somniaTestnet
+```
+
+Per bot with claimable rewards:
+1. Admin sends **1 STT** to bot (gas)
+2. Bot claims all claimable epochs
+3. Bot sweeps remaining STT back to admin
+
+Optional env:
+
+- `ACCOUNTS_JSON_PATH=./bet-accounts.json`
+- `MAX_ACCOUNTS=50`
+- `BOT_FUND_STT=1`
+- `DRY_RUN=true`
+

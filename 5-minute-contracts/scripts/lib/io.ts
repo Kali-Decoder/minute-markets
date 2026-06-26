@@ -11,3 +11,9 @@ export function writeJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
+export function resolvePathFromRoot(relativePath: string): string {
+  return path.isAbsolute(relativePath)
+    ? relativePath
+    : path.join(process.cwd(), relativePath);
+}
+

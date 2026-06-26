@@ -1,5 +1,6 @@
 node_modules
 .env
+bet-accounts.json
 
 # Hardhat files
 /cache

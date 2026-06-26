@@ -3,6 +3,12 @@ import * as readline from "readline";
 import hre from "hardhat";
 import { readJsonIfExists } from "../lib/io";
 import { DEPLOYMENT_FACTORY_JSON } from "../lib/paths";
+import {
+  EPOCH_FACTORY_ABI,
+  EPOCH_FACTORY_ADDRESS,
+  EPOCH_POOL_READ_ABI,
+  EPOCH_POOL_SWEEP_ABI,
+} from "../lib/epochAbis";
 
 export type BetAccount = {
   address: string;
@@ -174,9 +180,125 @@ export async function resolveFactoryAddress(): Promise<string> {
     return deployment.factory;
   }
 
-  throw new Error(
-    "FACTORY_ADDRESS missing in .env and deployments/factory.json"
+  return EPOCH_FACTORY_ADDRESS;
+}
+
+export async function getEpochFactory() {
+  const address = await resolveFactoryAddress();
+  return new hre.ethers.Contract(
+    address,
+    EPOCH_FACTORY_ABI,
+    hre.ethers.provider
   );
+}
+
+export async function getAllEpochPoolAddresses(): Promise<string[]> {
+  const factory = await getEpochFactory();
+  const markets = await factory.getAllMarkets();
+  return [...markets];
+}
+
+export async function resolvePoolAddresses(): Promise<string[]> {
+  const fromEnv = process.env.MARKET_ADDRESSES?.trim();
+  if (fromEnv) {
+    const addresses = fromEnv
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (addresses.length === 0) {
+      throw new Error("MARKET_ADDRESSES is set but empty");
+    }
+
+    for (const address of addresses) {
+      await assertMarketExists(address);
+    }
+
+    return addresses;
+  }
+
+  return getAllEpochPoolAddresses();
+}
+
+export type EpochPoolState = {
+  address: string;
+  name: string;
+  symbol: string;
+  coinId: string;
+  owner: string;
+  treasury: string;
+  totalTreasury: bigint;
+  contractBalance: bigint;
+  currentEpoch?: bigint;
+};
+
+export async function readEpochPoolState(
+  poolAddress: string
+): Promise<EpochPoolState | null> {
+  await assertMarketExists(poolAddress);
+
+  const pool = new hre.ethers.Contract(
+    poolAddress,
+    EPOCH_POOL_READ_ABI,
+    hre.ethers.provider
+  );
+
+  try {
+    const [
+      owner,
+      treasury,
+      totalTreasury,
+      contractBalance,
+      name,
+      symbol,
+      coinId,
+      currentEpoch,
+    ] = await Promise.all([
+      pool.owner(),
+      pool.treasury(),
+      pool.totalTreasury(),
+      pool.getContractBalance(),
+      pool.marketName(),
+      pool.marketSymbol(),
+      pool.coinId(),
+      pool.currentEpoch(),
+    ]);
+
+    return {
+      address: poolAddress,
+      name,
+      symbol,
+      coinId,
+      owner,
+      treasury,
+      totalTreasury,
+      contractBalance,
+      currentEpoch,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getEpochPoolContract(
+  poolAddress: string,
+  signer: hre.ethers.Signer
+) {
+  return new hre.ethers.Contract(poolAddress, EPOCH_POOL_SWEEP_ABI, signer);
+}
+
+export function promptYesNo(message: string): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${message} (yes/no): `, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === "yes");
+    });
+  });
 }
 
 export async function getMarket(marketAddress?: string) {

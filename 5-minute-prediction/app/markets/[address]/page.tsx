@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, TrendingUp, TrendingDown, Layers, Wallet, RefreshCw, Calendar, ShieldCheck, HelpCircle, Flame, Coins } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Layers, Wallet, RefreshCw, Calendar, ShieldCheck, HelpCircle, Flame, Coins, Copy, Check } from "lucide-react";
 import { formatEther, formatUnits, parseEther, type Address } from "viem";
 import { useAccount } from "wagmi";
 import {
@@ -100,6 +100,7 @@ export default function MarketDetailPage() {
 
   const [amountEth, setAmountEth] = useState<string>("0.01");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copiedPool, setCopiedPool] = useState(false);
 
   const coinId = typeof meta.coinId.data === "string" ? meta.coinId.data : null;
   const derivedSymbol = useMemo(() => {
@@ -139,21 +140,51 @@ export default function MarketDetailPage() {
 
   const [oddsSeries, setOddsSeries] = useState<OddsPoint[]>([]);
 
-  // Smooth out line trends by capturing active states without structural mutations
+  useEffect(() => {
+    if (!currentRound) {
+      setOddsSeries([]);
+      return;
+    }
+
+    const total = currentRound.upPool + currentRound.downPool;
+    const yes = total === 0n ? 50 : Number((currentRound.upPool * 10000n) / total) / 100;
+    const no = total === 0n ? 50 : Number((currentRound.downPool * 10000n) / total) / 100;
+    const startMs =
+      currentRound.startTimestamp > 0n
+        ? Number(currentRound.startTimestamp) * 1000
+        : Date.now() - 60_000;
+
+    setOddsSeries([
+      { t: startMs, yes: 50, no: 50 },
+      { t: Date.now(), yes, no },
+    ]);
+  }, [currentRound?.epoch, currentRound?.upPool, currentRound?.downPool, currentRound?.startTimestamp]);
+
   useEffect(() => {
     if (!currentRound) return;
-    const point: OddsPoint = { 
-      t: Date.now(), 
-      yes: upPctNum, 
-      no: downPctNum 
+
+    const appendPoint = () => {
+      const point: OddsPoint = {
+        t: Date.now(),
+        yes: upPctNum,
+        no: downPctNum,
+      };
+
+      setOddsSeries((prev) => {
+        if (prev.length === 0) return [point];
+
+        const last = prev[prev.length - 1];
+        if (point.t - last.t < 2500) {
+          return [...prev.slice(0, -1), point];
+        }
+
+        return [...prev, point].slice(-120);
+      });
     };
-    setOddsSeries((prev) => {
-      // Prevent duplicating data entries on the precise same timestamp frame
-      if (prev.length > 0 && Math.abs(prev[prev.length - 1].t - point.t) < 1000) {
-        return prev;
-      }
-      return [...prev, point].slice(-60); 
-    });
+
+    appendPoint();
+    const id = setInterval(appendPoint, 5000);
+    return () => clearInterval(id);
   }, [upPctNum, downPctNum, currentRound?.epoch]);
 
   useEffect(() => {
@@ -196,6 +227,17 @@ export default function MarketDetailPage() {
 
   const doRefetchAll = async () => {
     await Promise.all([refetchRound(), refetchBalance(), refetchUserBet()]);
+  };
+
+  const copyPoolAddress = async () => {
+    if (!market) return;
+    try {
+      await navigator.clipboard.writeText(market);
+      setCopiedPool(true);
+      setTimeout(() => setCopiedPool(false), 2000);
+    } catch {
+      setActionError("Could not copy pool address.");
+    }
   };
 
   const isOwner = useMemo(() => {
@@ -285,8 +327,28 @@ export default function MarketDetailPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Prediction Markets
         </Link>
-        <div className="text-[10px] font-mono font-semibold bg-black/40 text-gray-500 px-3 py-1 rounded-xl border border-white/5 max-w-full truncate select-all">
-          Contract: <span className="text-gray-400">{market}</span>
+        <div className="flex items-center gap-2 min-w-0 max-w-full">
+          <div className="text-[10px] font-mono font-semibold bg-black/40 text-gray-500 px-3 py-1 rounded-xl border border-white/5 min-w-0 truncate select-all">
+            Pool: <span className="text-gray-400">{market}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void copyPoolAddress()}
+            title="Copy pool address"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 transition-all hover:bg-white/10 hover:text-white"
+          >
+            {copiedPool ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-emerald-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -385,20 +447,21 @@ export default function MarketDetailPage() {
                   />
                 </div>
 
-                {/* Percentage Distribution Progress Visual Indicator */}
-                <div className="space-y-1.5 bg-black/20 border border-white/[0.03] p-3.5 rounded-xl">
-                  <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider">
-                    <span className="text-emerald-400 flex items-center gap-1">▲ UP Volume ({oddsUpPct})</span>
-                    <span className="text-rose-400 flex items-center gap-1">DOWN Volume ({oddsDownPct}) ▼</span>
+                {/* UP vs DOWN line graph (replaces static percentage bar) */}
+                <div className="space-y-3 rounded-xl border border-white/[0.03] bg-black/20 p-3.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-purple-400" />
+                      UP vs DOWN pool share
+                    </span>
+                    <span className="font-mono text-[9px] text-gray-400">Live line trend</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden flex shadow-inner">
-                    <div 
-                      className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
-                      style={{ width: `${upPctNum}%` }}
-                    />
-                    <div 
-                      className="h-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500 ease-out"
-                      style={{ width: `${downPctNum}%` }}
+                  <div className="w-full overflow-hidden rounded-lg border border-white/[0.02] bg-black/30 p-3">
+                    <MarketOddsHistoryChart
+                      series={oddsSeries}
+                      yesLabel="UP"
+                      noLabel="DOWN"
+                      variant="embedded"
                     />
                   </div>
                 </div>
@@ -466,22 +529,6 @@ export default function MarketDetailPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Real-Time Line Graph Block Container */}
-                <div className="rounded-xl border border-white/5 bg-black/30 p-4">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-white/[0.03]">
-                    <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-purple-400" /> Pool Distribution Wave Trend</span>
-                    <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-white/[0.02] text-gray-400 text-[9px]">
-                      Historical Trend Wave Tracker
-                    </span>
-                  </div>
-                  {/* Fixed graph alignment container utilizing full aspect bounds */}
-                  <div className="h-[220px] w-full bg-black/20 rounded-lg overflow-hidden relative border border-white/[0.02]">
-                    <div className="absolute inset-0 p-3 pr-4 pt-4">
-                      <MarketOddsHistoryChart series={oddsSeries} yesLabel="UP Pool %" noLabel="DOWN Pool %" />
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -532,7 +579,6 @@ export default function MarketDetailPage() {
                 </div>
               </div>
 
-              {/* Directional Action Submission Track */}
               <div className="flex flex-col gap-2.5 pt-1">
                 <button
                   onClick={() => doBet("UP")}
@@ -552,7 +598,6 @@ export default function MarketDetailPage() {
                 </button>
               </div>
 
-              {/* Localized notification text for bet block state triggers */}
               {!betState.canBet && betState.reason && (
                 <div className="text-[10px] bg-amber-500/5 border border-amber-500/10 text-amber-400 p-2.5 rounded-lg leading-relaxed font-medium">
                   {betState.reason}
